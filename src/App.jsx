@@ -128,6 +128,9 @@ export default function CourtFlowPrototype() {
   const [step, setStep] = useState("details");
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [profile, setProfile] = useState({ name: "", email: "", phone: "" });
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [courtId, setCourtId] = useState(null);
   const [bookingError, setBookingError] = useState("");
   const [showLogin, setShowLogin] = useState(false);
@@ -187,6 +190,22 @@ export default function CourtFlowPrototype() {
 
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setProfile({ name: "", email: "", phone: "" });
+      return;
+    }
+    supabase
+      .from("users")
+      .select("name, email, phone")
+      .eq("id", currentUserId)
+      .single()
+      .then(({ data, error }) => {
+        if (data) setProfile(data);
+        if (error) console.error("Could not load profile:", error.message);
+      });
+  }, [currentUserId]);
 
   useEffect(() => {
     supabase
@@ -302,6 +321,9 @@ export default function CourtFlowPrototype() {
       setShowLogin(true);
       return;
     }
+    setName(profile.name || "");
+    setEmail(profile.email || "");
+    setPhone(profile.phone || "");
     setStep("details");
     setPanelOpen(true);
   }
@@ -316,14 +338,26 @@ export default function CourtFlowPrototype() {
         email: authEmail,
         password: authPassword,
       });
-      setAuthLoading(false);
       if (error) {
+        setAuthLoading(false);
         setAuthError(error.message);
         return;
       }
+      const { data: profileData } = await supabase
+        .from("users")
+        .select("name, email, phone")
+        .eq("id", data.user.id)
+        .single();
+      setAuthLoading(false);
       setLoggedIn(true);
       setCurrentUserId(data.user.id);
       setShowLogin(false);
+      if (profileData) {
+        setProfile(profileData);
+        setName(profileData.name || "");
+        setEmail(profileData.email || "");
+        setPhone(profileData.phone || "");
+      }
       if (selected.length > 0) {
         setStep("details");
         setPanelOpen(true);
@@ -352,6 +386,10 @@ export default function CourtFlowPrototype() {
       setLoggedIn(true);
       setCurrentUserId(data.user.id);
       setShowLogin(false);
+      setProfile({ name: authName, email: authEmail, phone: "" });
+      setName(authName);
+      setEmail(authEmail);
+      setPhone("");
       if (selected.length > 0) {
         setStep("details");
         setPanelOpen(true);
@@ -365,6 +403,11 @@ export default function CourtFlowPrototype() {
     if (!currentUserId || !courtId) {
       setBookingError("Could not identify your account or the court. Please refresh and try again.");
       return;
+    }
+
+    if (phone && phone !== profile.phone) {
+      await supabase.from("users").update({ phone }).eq("id", currentUserId);
+      setProfile((prev) => ({ ...prev, phone }));
     }
 
     const { data: bookingRow, error: bookingErr } = await supabase
@@ -416,7 +459,7 @@ export default function CourtFlowPrototype() {
   const isToday = selectedDate === todayStr();
 
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", color: COLORS.text }}>
+    <div style={{ fontFamily: "'Stack Sans Text', 'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", color: COLORS.text }}>
       <style>{`
         .cf-btn { cursor: pointer; border: none; font-family: inherit; transition: opacity 0.15s, transform 0.1s; }
         .cf-btn:active { transform: scale(0.98); }
@@ -442,13 +485,35 @@ export default function CourtFlowPrototype() {
           <button className="cf-btn" onClick={() => setView("account")} style={{ background: "none", fontSize: 13, color: view === "account" ? COLORS.onyx : COLORS.muted, fontWeight: view === "account" ? 500 : 400 }}>
             Account
           </button>
-          <button className="cf-btn" onClick={() => setView("admin")} style={{ background: "none", fontSize: 13, color: view === "admin" ? COLORS.onyx : COLORS.muted, fontWeight: view === "admin" ? 500 : 400 }}>
-            Admin
-          </button>
-          {!loggedIn && (
+          {!loggedIn ? (
             <button className="cf-btn" onClick={() => setShowLogin(true)} style={{ height: 34, padding: "0 16px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}>
               Log in
             </button>
+          ) : (
+            <div style={{ position: "relative" }}>
+              <button
+                className="cf-btn"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                style={{ background: "none", fontSize: 13, color: COLORS.onyx, display: "flex", alignItems: "center", gap: 4 }}
+              >
+                Hello, {(profile.name || "there").split(" ")[0]}
+              </button>
+              {accountMenuOpen && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 20, minWidth: 120 }}>
+                  <button
+                    className="cf-btn"
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      setAccountMenuOpen(false);
+                      setView("home");
+                    }}
+                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx, borderRadius: 8 }}
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -601,7 +666,19 @@ export default function CourtFlowPrototype() {
                 </label>
                 <label style={{ display: "flex", gap: 8, fontSize: 12, marginBottom: 20, alignItems: "flex-start" }}>
                   <input type="checkbox" checked={agree2} onChange={(e) => setAgree2(e.target.checked)} style={{ marginTop: 2 }} />
-                  I agree to the terms and conditions and waiver.
+                  <span>
+                    I agree to the{" "}
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowTerms(true);
+                      }}
+                      style={{ color: COLORS.goldDark, textDecoration: "underline", cursor: "pointer" }}
+                    >
+                      terms and conditions and waiver
+                    </span>
+                    .
+                  </span>
                 </label>
 
                 {bookingError && (
@@ -707,6 +784,73 @@ export default function CourtFlowPrototype() {
           </div>
         </div>
       )}
+
+      {/* Terms and conditions modal */}
+      {showTerms && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(18,16,13,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60 }}>
+          <div style={{ width: 480, maxHeight: "80vh", overflowY: "auto", background: COLORS.ivory, borderRadius: 16, padding: 28, position: "relative" }}>
+            <button
+              className="cf-btn"
+              onClick={() => setShowTerms(false)}
+              style={{ position: "absolute", top: 16, right: 16, background: "none", padding: 4 }}
+              aria-label="Close"
+            >
+              <X size={18} color={COLORS.muted} />
+            </button>
+            <h3 style={{ fontFamily: "Georgia, serif", fontSize: 18, color: COLORS.onyx, marginBottom: 16 }}>Terms and conditions</h3>
+
+            <div style={{ fontSize: 13, color: COLORS.text, lineHeight: 1.6 }}>
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>1. Booking and payment</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                All bookings must be paid in full at the time of reservation. A booking is confirmed only once payment has been successfully processed.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>2. No refunds</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                All payments are non-refundable, including in the case of cancellation, no-show, or early departure. We do not offer cash or credit refunds under any circumstance.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>3. Rescheduling</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                Bookings may be rescheduled to another available time slot, provided the request is made at least 12 hours before the original start time. Rescheduling is subject to availability and does not incur a refund — only a change of time.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>4. Cancellations</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                Cancellations must also be made at least 12 hours before the scheduled start time. Cancelled bookings are not refunded.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>5. Late arrival and no-shows</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                The booked time slot ends at its scheduled time regardless of arrival time. No extensions or refunds are given for late arrivals or no-shows.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>6. Court usage and conduct</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                Customers are expected to use the court and facility responsibly and to vacate on time for the next booking. CourtFlow reserves the right to refuse service or cancel bookings in cases of misconduct, property damage, or safety violations.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>7. Liability and waiver</p>
+              <p style={{ marginBottom: 12, color: COLORS.muted }}>
+                Participation in physical activity carries inherent risk of injury. By booking, you acknowledge this risk and agree that CourtFlow is not liable for any injury, loss, or damage arising from use of the facility, except where caused by our gross negligence.
+              </p>
+
+              <p style={{ fontWeight: 500, marginBottom: 4 }}>8. Closures and changes</p>
+              <p style={{ marginBottom: 0, color: COLORS.muted }}>
+                CourtFlow may occasionally close the court for maintenance or other reasons. Affected bookings will be offered a reschedule to another available time.
+              </p>
+            </div>
+
+            <button
+              className="cf-btn"
+              onClick={() => setShowTerms(false)}
+              style={{ marginTop: 20, width: "100%", height: 42, borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -778,15 +922,19 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
 
       <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>6:00 AM – 11:00 PM | ₱300/hour</p>
 
-      <div style={{ overflowX: "auto", marginTop: 20, marginBottom: 16 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+      <div style={{ overflowX: "auto", marginTop: 14, marginBottom: 14 }}>
+        <table style={{ width: "100%", minWidth: 675, borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: 135 }} />
+            {COURTS.map((c) => <col key={c.id} style={{ width: 90 }} />)}
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Time</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Time</th>
               {COURTS.map((c) => (
-                <th key={c.id} style={{ padding: "8px 10px", fontSize: 12, color: COLORS.onyx, fontWeight: 500 }}>
+                <th key={c.id} style={{ padding: "6px 4px", fontSize: 11, color: COLORS.onyx, fontWeight: 500 }}>
                   {c.name}
-                  <div style={{ fontSize: 10, color: COLORS.muted, fontWeight: 400 }}>{c.tag}</div>
+                  <div style={{ fontSize: 9, color: COLORS.muted, fontWeight: 400 }}>{c.tag}</div>
                 </th>
               ))}
             </tr>
@@ -795,7 +943,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
             {Object.entries(bySection).map(([section, slots]) => (
               <>
                 <tr key={section}>
-                  <td colSpan={COURTS.length + 1} style={{ padding: "14px 10px 6px", fontSize: 11, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  <td colSpan={COURTS.length + 1} style={{ padding: "8px 8px 3px", fontSize: 10, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
                     {section}
                   </td>
                 </tr>
@@ -804,18 +952,18 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
                   const s = STATUS[status];
                   return (
                     <tr key={slot.id}>
-                      <td style={{ padding: "4px 10px", fontSize: 12, color: COLORS.text, whiteSpace: "nowrap" }}>{slot.label}</td>
-                      <td style={{ padding: "3px 6px" }}>
+                      <td style={{ padding: "2px 8px", fontSize: 10, fontWeight: 500, color: COLORS.text, whiteSpace: "nowrap" }}>{slot.label}</td>
+                      <td style={{ padding: "2px 3px" }}>
                         <button
                           className="cf-btn cf-cell"
                           disabled={status === "booked" || status === "unavailable" || status === "mine"}
                           onClick={() => toggleSlot(slot)}
-                          style={{ width: "100%", height: 34, borderRadius: 6, border: `1px solid ${s.border}`, background: s.bg, color: s.text, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                          style={{ width: "100%", height: 26, borderRadius: 5, border: `1px solid ${s.border}`, background: s.bg, color: s.text, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
                         >
                           {status === "available" && <span className="cf-cell-hover">Select</span>}
                           {status === "selected" && (
                             <>
-                              <Check size={12} color={s.text} />
+                              <Check size={10} color={s.text} />
                               <span>Selected</span>
                             </>
                           )}
@@ -823,8 +971,8 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
                         </button>
                       </td>
                       {COURTS.slice(1).map((c) => (
-                        <td key={c.id} style={{ padding: "3px 6px" }}>
-                          <div style={{ height: 34, borderRadius: 6, border: `1px solid ${STATUS.comingSoon.border}`, background: STATUS.comingSoon.bg, color: STATUS.comingSoon.text, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <td key={c.id} style={{ padding: "2px 3px" }}>
+                          <div style={{ height: 26, borderRadius: 5, border: `1px solid ${STATUS.comingSoon.border}`, background: STATUS.comingSoon.bg, color: STATUS.comingSoon.text, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
                             Coming soon
                           </div>
                         </td>
