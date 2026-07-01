@@ -1,9 +1,10 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import {
   Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
   LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2,
 } from "lucide-react";
-import { supabase } from "./supabaseClient";
+import { supabase, supabaseAdmin } from "./supabaseClient";
 
 const COLORS = {
   onyx: "#12100D",
@@ -122,7 +123,7 @@ function getMonthMatrix(dateStr) {
   return { weeks, monthLabel };
 }
 
-export default function CourtFlowPrototype() {
+function CustomerApp() {
   const [view, setView] = useState("home");
   const [panelOpen, setPanelOpen] = useState(false);
   const [step, setStep] = useState("details");
@@ -158,12 +159,6 @@ export default function CourtFlowPrototype() {
   const [bookings, setBookings] = useState([]);
   const [myTab, setMyTab] = useState("upcoming");
   const [rescheduleId, setRescheduleId] = useState(null);
-
-  const [closures, setClosures] = useState(INITIAL_CLOSURES);
-  const [newClosureOpen, setNewClosureOpen] = useState(false);
-  const [newClosureReason, setNewClosureReason] = useState("");
-  const [newClosureWhen, setNewClosureWhen] = useState("");
-  const [adminTab, setAdminTab] = useState("dashboard");
 
   const basePrice = selected.length * 300;
   const selectedMethod = PAYMENT_METHODS.find((m) => m.id === payment) || null;
@@ -546,22 +541,6 @@ export default function CourtFlowPrototype() {
           selectedDate={selectedDate}
           courtId={courtId}
           onLoginClick={() => setShowLogin(true)}
-        />
-      )}
-
-      {view === "admin" && (
-        <AdminView
-          adminTab={adminTab}
-          setAdminTab={setAdminTab}
-          bookings={bookings}
-          closures={closures}
-          setClosures={setClosures}
-          newClosureOpen={newClosureOpen}
-          setNewClosureOpen={setNewClosureOpen}
-          newClosureReason={newClosureReason}
-          setNewClosureReason={setNewClosureReason}
-          newClosureWhen={newClosureWhen}
-          setNewClosureWhen={setNewClosureWhen}
         />
       )}
 
@@ -1301,5 +1280,140 @@ function AdminView({
         )}
       </div>
     </div>
+  );
+}
+
+function AdminApp() {
+  const [checking, setChecking] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [bookings, setBookings] = useState([]);
+  const [closures, setClosures] = useState(INITIAL_CLOSURES);
+  const [newClosureOpen, setNewClosureOpen] = useState(false);
+  const [newClosureReason, setNewClosureReason] = useState("");
+  const [newClosureWhen, setNewClosureWhen] = useState("");
+  const [adminTab, setAdminTab] = useState("dashboard");
+
+  async function checkAdmin(userId) {
+  const { data } = await supabaseAdmin.from("users").select("is_admin").eq("id", userId).single();
+  return !!data?.is_admin;
+}
+
+  useEffect(() => {
+    supabaseAdmin.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        const isAdmin = await checkAdmin(data.session.user.id);
+        setAuthorized(isAdmin);
+      }
+      setChecking(false);
+    });
+  }, []);
+
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { data, error: signInError } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setLoading(false);
+      setError(signInError.message);
+      return;
+    }
+    const isAdmin = await checkAdmin(data.user.id);
+    setLoading(false);
+    if (!isAdmin) {
+      await supabaseAdmin.auth.signOut();
+      setError("This account does not have admin access.");
+      return;
+    }
+    setAuthorized(true);
+  }
+
+  async function handleAdminLogout() {
+    await supabaseAdmin.auth.signOut();
+    setAuthorized(false);
+  }
+
+  if (checking) {
+    return <div style={{ padding: 40, fontFamily: "'Inter', sans-serif" }}>Loading...</div>;
+  }
+
+  if (!authorized) {
+    return (
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.onyx, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 360, background: COLORS.ivory, borderRadius: 16, padding: 28 }}>
+          <p style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, marginBottom: 4 }}>CourtFlow admin</p>
+          <p style={{ fontSize: 12, color: COLORS.muted, marginBottom: 20 }}>Staff access only.</p>
+          <form onSubmit={handleAdminLogin}>
+            {error && (
+              <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                {error}
+              </div>
+            )}
+            <label className="cf-label">Email</label>
+            <input className="cf-input" style={{ marginBottom: 12 }} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className="cf-label">Password</label>
+            <input className="cf-input" style={{ marginBottom: 20 }} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button
+              type="submit"
+              className="cf-btn"
+              disabled={loading}
+              style={{ width: "100%", height: 42, borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 500, opacity: loading ? 0.6 : 1 }}
+            >
+              {loading ? "Please wait..." : "Log in"}
+            </button>
+          </form>
+          <style>{`
+            .cf-btn { cursor: pointer; border: none; font-family: inherit; }
+            .cf-input { width: 100%; height: 40px; border-radius: 8px; border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; }
+            .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
+          `}</style>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", color: COLORS.text }}>
+      <style>{`
+        .cf-btn { cursor: pointer; border: none; font-family: inherit; }
+        .cf-input { width: 100%; height: 40px; border-radius: 8px; border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; }
+        .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
+      `}</style>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow admin</div>
+        <button className="cf-btn" onClick={handleAdminLogout} style={{ background: "none", fontSize: 13, color: COLORS.muted }}>
+          Log out
+        </button>
+      </div>
+      <AdminView
+        adminTab={adminTab}
+        setAdminTab={setAdminTab}
+        bookings={bookings}
+        closures={closures}
+        setClosures={setClosures}
+        newClosureOpen={newClosureOpen}
+        setNewClosureOpen={setNewClosureOpen}
+        newClosureReason={newClosureReason}
+        setNewClosureReason={setNewClosureReason}
+        newClosureWhen={newClosureWhen}
+        setNewClosureWhen={setNewClosureWhen}
+      />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/admin/*" element={<AdminApp />} />
+        <Route path="/*" element={<CustomerApp />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
