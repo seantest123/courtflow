@@ -458,6 +458,7 @@ export default function CourtFlowPrototype() {
           loadMyBookings={loadMyBookings}
           loadAvailability={loadAvailability}
           selectedDate={selectedDate}
+          courtId={courtId}
           onLoginClick={() => setShowLogin(true)}
         />
       )}
@@ -845,7 +846,32 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, onLoginClick }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, onLoginClick }) {
+  const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
+  const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
+
+  useEffect(() => {
+    if (!rescheduleId || !courtId) return;
+    setRescheduleDate(selectedDate);
+  }, [rescheduleId]);
+
+  useEffect(() => {
+    if (!rescheduleId || !courtId) return;
+    supabase
+      .from("booking_slots")
+      .select("start_time")
+      .eq("court_id", courtId)
+      .eq("slot_date", rescheduleDate)
+      .eq("status", "booked")
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(error.message);
+          return;
+        }
+        setRescheduleBookedHours(data.map((r) => parseInt(r.start_time.slice(0, 2), 10)));
+      });
+  }, [rescheduleId, rescheduleDate, courtId]);
+
   async function cancelBooking(id) {
     const { error } = await supabase.from("booking_slots").update({ status: "cancelled" }).eq("id", id);
     if (error) {
@@ -857,7 +883,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
   }
 
   async function rescheduleBooking(id, newStart, newEnd) {
-    const { error } = await supabase.from("booking_slots").update({ start_time: newStart, end_time: newEnd }).eq("id", id);
+    const { error } = await supabase.from("booking_slots").update({ start_time: newStart, end_time: newEnd, slot_date: rescheduleDate }).eq("id", id);
     if (error) {
       alert(error.message);
       return;
@@ -929,18 +955,43 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
 
       {rescheduleId && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(18,16,13,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
-          <div style={{ width: 320, background: COLORS.ivory, borderRadius: 16, padding: 24 }}>
+          <div style={{ width: 360, maxHeight: "80vh", overflowY: "auto", background: COLORS.ivory, borderRadius: 16, padding: 24 }}>
             <p style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx, marginBottom: 12 }}>Choose a new time</p>
-            {[
-              { label: "9:00 - 10:00 AM", start: "09:00:00", end: "10:00:00" },
-              { label: "1:00 - 2:00 PM", start: "13:00:00", end: "14:00:00" },
-              { label: "5:00 - 6:00 PM", start: "17:00:00", end: "18:00:00" },
-            ].map((t) => (
-              <div key={t.label} className="cf-slot-row" onClick={() => rescheduleBooking(rescheduleId, t.start, t.end)}>
-                <span style={{ fontSize: 14 }}>{t.label}</span>
-                <span style={{ fontSize: 12, color: COLORS.muted }}>Available</span>
-              </div>
-            ))}
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <button className="cf-btn" onClick={() => setRescheduleDate(addDays(rescheduleDate, -1))} style={{ background: "none", padding: 4 }} aria-label="Previous day">
+                <ChevronLeft size={16} color={COLORS.onyx} />
+              </button>
+              <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx }}>{formatDateLabel(rescheduleDate)}</span>
+              <button className="cf-btn" onClick={() => setRescheduleDate(addDays(rescheduleDate, 1))} style={{ background: "none", padding: 4 }} aria-label="Next day">
+                <ChevronRight size={16} color={COLORS.onyx} />
+              </button>
+            </div>
+
+            {ALL_SLOTS.map((slot) => {
+              const isBooked = rescheduleBookedHours.includes(slot.hour);
+              const isPast = rescheduleDate === todayStr() && slot.hour <= new Date().getHours();
+              const disabled = isBooked || isPast;
+              return (
+                <div
+                  key={slot.id}
+                  className="cf-slot-row"
+                  style={disabled ? { opacity: 0.45, cursor: "not-allowed" } : {}}
+                  onClick={() => {
+                    if (disabled) return;
+                    rescheduleBooking(
+                      rescheduleId,
+                      `${String(slot.hour).padStart(2, "0")}:00:00`,
+                      `${String(slot.hour + 1).padStart(2, "0")}:00:00`
+                    );
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>{slot.label}</span>
+                  <span style={{ fontSize: 12, color: COLORS.muted }}>{disabled ? "Unavailable" : "Available"}</span>
+                </div>
+              );
+            })}
+
             <button className="cf-btn" onClick={() => setRescheduleId(null)} style={{ marginTop: 8, background: "none", fontSize: 13, color: COLORS.muted }}>
               Cancel
             </button>
