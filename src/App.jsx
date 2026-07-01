@@ -168,6 +168,27 @@ export default function CourtFlowPrototype() {
   const holdActive = selected.length > 0 && step !== "confirm";
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setLoggedIn(true);
+        setCurrentUserId(data.session.user.id);
+      }
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setLoggedIn(true);
+        setCurrentUserId(session.user.id);
+      } else {
+        setLoggedIn(false);
+        setCurrentUserId(null);
+      }
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     supabase
       .from("courts")
       .select("id")
