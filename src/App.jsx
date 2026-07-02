@@ -136,7 +136,7 @@ function CustomerApp() {
   const [step, setStep] = useState("details");
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [profile, setProfile] = useState({ name: "", email: "", phone: "" });
+  const [profile, setProfile] = useState({ name: "", email: "", phone: "", balance: 0 });
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [courtId, setCourtId] = useState(null);
@@ -200,20 +200,23 @@ function CustomerApp() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  async function reloadProfile() {
+    if (!currentUserId) return;
+    const { data, error } = await supabase
+      .from("users")
+      .select("name, email, phone, balance")
+      .eq("id", currentUserId)
+      .single();
+    if (data) setProfile(data);
+    if (error) console.error("Could not load profile:", error.message);
+  }
+
   useEffect(() => {
     if (!currentUserId) {
-      setProfile({ name: "", email: "", phone: "" });
+      setProfile({ name: "", email: "", phone: "", balance: 0 });
       return;
     }
-    supabase
-      .from("users")
-      .select("name, email, phone")
-      .eq("id", currentUserId)
-      .single()
-      .then(({ data, error }) => {
-        if (data) setProfile(data);
-        if (error) console.error("Could not load profile:", error.message);
-      });
+    reloadProfile();
   }, [currentUserId]);
 
   useEffect(() => {
@@ -403,7 +406,7 @@ function CustomerApp() {
       }
       const { data: profileData } = await supabase
         .from("users")
-        .select("name, email, phone")
+        .select("name, email, phone, balance")
         .eq("id", data.user.id)
         .single();
       setAuthLoading(false);
@@ -485,6 +488,40 @@ function CustomerApp() {
 
     if (!currentUserId || !courtId) {
       setBookingError("Could not identify your account or the court. Please refresh and try again.");
+      return;
+    }
+
+    if (payment === "balance") {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      let result;
+      try {
+        const res = await fetch(
+          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/pay-with-balance",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              courtId,
+              slotDate: selectedDate,
+              slots: selected.map((s) => ({ hour: s.hour })),
+              amount: basePrice,
+            }),
+          }
+        );
+        result = await res.json();
+      } catch (err) {
+        setBookingError("Could not reach the server. Please try again.");
+        return;
+      }
+      if (result.error) {
+        setBookingError(result.error);
+        return;
+      }
+      await loadMyBookings();
+      await loadAvailability(selectedDate);
+      await reloadProfile();
+      setStep("confirm");
       return;
     }
 
@@ -596,7 +633,7 @@ function CustomerApp() {
                 Hello, {(profile.name || "there").split(" ")[0]}
               </button>
               {accountMenuOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 20, minWidth: 120 }}>
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 20, minWidth: 160 }}>
                   <button
                     className="cf-btn"
                     onClick={async () => {
@@ -604,10 +641,13 @@ function CustomerApp() {
                       setAccountMenuOpen(false);
                       setView("home");
                     }}
-                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx, borderRadius: 8 }}
+                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx, borderRadius: "8px 8px 0 0" }}
                   >
                     Log out
                   </button>
+                  <div style={{ padding: "10px 14px", borderTop: `1px solid ${COLORS.border}`, fontSize: 12, color: COLORS.muted }}>
+                    Balance: <span style={{ color: COLORS.goldDark, fontWeight: 500 }}>₱{Number(profile.balance).toFixed(2)}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -648,6 +688,7 @@ function CustomerApp() {
           courtId={courtId}
           daySlots={daySlots}
           profile={profile}
+          reloadProfile={reloadProfile}
           onLoginClick={() => setShowLogin(true)}
         />
       )}
@@ -714,9 +755,12 @@ function CustomerApp() {
                 <p className="cf-label">Payment method</p>
                 <p style={{ fontSize: 11, color: COLORS.muted, marginTop: -2, marginBottom: 10 }}>Total updates with the selected payment method.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                  {PAYMENT_METHODS.map((m) => {
+                  {[
+                    { id: "balance", label: "Account balance", feePct: 0, available: profile.balance >= basePrice, isBalance: true },
+                    ...PAYMENT_METHODS,
+                  ].map((m) => {
                     const isSelected = payment === m.id;
-                    const methodTotal = computeTotal(basePrice, m);
+                    const methodTotal = m.isBalance ? basePrice : computeTotal(basePrice, m);
                     return (
                       <button
                         key={m.id}
@@ -741,8 +785,13 @@ function CustomerApp() {
                         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <CreditCard size={14} />
                           {m.label}
+                          {m.isBalance && <span style={{ fontSize: 11, color: COLORS.muted }}>(₱{Number(profile.balance).toFixed(2)} available)</span>}
                         </span>
-                        <span style={{ fontSize: 12 }}>{m.available ? `₱${methodTotal}` : "Coming soon"}</span>
+                        <span style={{ fontSize: 12 }}>
+                          {m.isBalance
+                            ? m.available ? `₱${methodTotal}` : "Insufficient balance"
+                            : m.available ? `₱${methodTotal}` : "Coming soon"}
+                        </span>
                       </button>
                     );
                   })}
@@ -982,7 +1031,7 @@ function CustomerApp() {
 
               <p style={{ fontWeight: 500, marginBottom: 4 }}>4. Cancellations</p>
               <p style={{ marginBottom: 12, color: COLORS.muted }}>
-                Cancellations must also be made at least 12 hours before the scheduled start time. Cancelled bookings are not refunded.
+                Bookings are non-refundable. If cancelled at least 12 hours before the scheduled start time, the amount paid is instead credited to your CourtFlow account balance for use on a future booking. Cancellations made less than 12 hours before the start time forfeit the full amount with no credit.
               </p>
 
               <p style={{ fontWeight: 500, marginBottom: 4 }}>5. Late arrival and no-shows</p>
@@ -1214,7 +1263,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, onLoginClick }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
 
@@ -1248,11 +1297,26 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
     }).catch(() => {});
   }
 
-  async function cancelBooking(booking) {
-    if (!confirm(`Cancel your booking on ${booking.dateLabel} · ${booking.timeLabel}? This is non-refundable and cannot be undone.`)) return;
-    const { error } = await supabase.from("booking_slots").update({ status: "cancelled" }).eq("id", booking.id);
-    if (error) {
-      alert(error.message);
+  async function convertToBalance(booking) {
+    if (!confirm(`Convert your booking on ${booking.dateLabel} · ${booking.timeLabel} to account balance? You'll be credited what you paid, usable on a future booking.`)) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    let result;
+    try {
+      const res = await fetch("https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/convert-to-balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ slotId: booking.id }),
+      });
+      result = await res.json();
+    } catch (err) {
+      alert("Could not reach the server. Please try again.");
+      return;
+    }
+    if (result.error) {
+      alert(result.error);
       return;
     }
     notifyStatusEmail({
@@ -1264,6 +1328,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
     });
     await loadMyBookings();
     await loadAvailability(selectedDate);
+    await reloadProfile();
   }
 
   async function rescheduleBooking(id, newStart, newEnd, newLabel) {
@@ -1329,8 +1394,8 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button className="cf-btn" onClick={() => cancelBooking(b)} style={{ height: 32, padding: "0 14px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 13, color: COLORS.onyx }}>
-                      Cancel
+                    <button className="cf-btn" onClick={() => convertToBalance(b)} style={{ height: 32, padding: "0 14px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 13, color: COLORS.onyx }}>
+                      Convert to balance
                     </button>
                     <button className="cf-btn" onClick={() => setRescheduleId(b.id)} style={{ height: 32, padding: "0 14px", borderRadius: 6, background: COLORS.pine, color: "#EFF3EC", fontSize: 13 }}>
                       Reschedule
@@ -1345,7 +1410,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
       {myTab === "past" && <p style={{ fontSize: 13, color: COLORS.muted }}>No past bookings yet.</p>}
 
       <p style={{ fontSize: 12, color: COLORS.muted, marginTop: 12 }}>
-        Reschedules and cancellations are not refunded, and need at least 12 hours' notice.
+        Rescheduling or converting to account balance is available up to 12 hours before your booking. After that, bookings are final and non-refundable.
       </p>
 
       {rescheduleId && (
