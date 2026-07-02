@@ -56,6 +56,13 @@ serve(async (req) => {
   const newBalance = Number(userRow.balance) - amount;
   await supabaseAdmin.from("users").update({ balance: newBalance }).eq("id", user.id);
 
+  await supabaseAdmin.from("balance_transactions").insert({
+    user_id: user.id,
+    amount: -amount,
+    type: "booking_payment",
+    description: `Booking on ${slotDate}`,
+  });
+
   return new Response(JSON.stringify({ success: true, bookingId: bookingRow.id, newBalance }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });

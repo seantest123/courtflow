@@ -67,6 +67,13 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: balanceErr.message }), { status: 500, headers: corsHeaders });
   }
 
+  await supabaseAdmin.from("balance_transactions").insert({
+    user_id: user.id,
+    amount: creditAmount,
+    type: "conversion",
+    description: `Converted booking on ${slot.slot_date} ${slot.start_time.slice(0, 5)}`,
+  });
+
   return new Response(JSON.stringify({ success: true, creditAmount, newBalance }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
