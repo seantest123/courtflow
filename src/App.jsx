@@ -137,6 +137,7 @@ function CustomerApp() {
   const [courtId, setCourtId] = useState(null);
   const [courtSettings, setCourtSettings] = useState({ hours_start: "06:00:00", hours_end: "23:00:00", status: "active" });
   const [bookingError, setBookingError] = useState("");
+  const [qrInfo, setQrInfo] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [showPw, setShowPw] = useState(false);
@@ -415,6 +416,70 @@ function CustomerApp() {
 
   const PAYMONGO_TYPE = { qrph: "qrph", gcash: "gcash", maya: "paymaya" };
 
+  async function createBookingRecord(pending) {
+    const { data: bookingRow, error: bookingErr } = await supabase
+      .from("bookings")
+      .insert({
+        user_id: pending.userId,
+        total_amount: pending.totalPrice,
+        payment_method: pending.payment,
+        payment_status: "paid",
+      })
+      .select()
+      .single();
+
+    if (bookingErr) return { error: bookingErr.message };
+
+    const slotRows = pending.slots.map((s) => ({
+      booking_id: bookingRow.id,
+      court_id: pending.courtId,
+      slot_date: pending.slotDate,
+      start_time: `${String(s.hour).padStart(2, "0")}:00:00`,
+      end_time: `${String(s.hour + 1).padStart(2, "0")}:00:00`,
+      price: 300,
+      status: "booked",
+    }));
+
+    const { error: slotsErr } = await supabase.from("booking_slots").insert(slotRows);
+    if (slotsErr) return { error: slotsErr.message };
+
+    if (pending.phone) {
+      await supabase.from("users").update({ phone: pending.phone }).eq("id", pending.userId);
+    }
+    return { success: true };
+  }
+
+  function pollQrPayment(intentId, pending) {
+    const interval = setInterval(async () => {
+      let result;
+      try {
+        const res = await fetch(
+          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/check-payment",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ intentId }),
+          }
+        );
+        result = await res.json();
+      } catch (err) {
+        return;
+      }
+      if (result.status === "succeeded") {
+        clearInterval(interval);
+        const outcome = await createBookingRecord(pending);
+        if (outcome.error) {
+          setBookingError(outcome.error);
+          setStep("details");
+          return;
+        }
+        await loadMyBookings();
+        await loadAvailability(pending.slotDate);
+        setStep("confirm");
+      }
+    }, 4000);
+  }
+
   async function handleConfirm() {
     setBookingError("");
 
@@ -430,6 +495,17 @@ function CustomerApp() {
     }
 
     const returnUrl = `${window.location.origin}/payment-return`;
+    const pending = {
+      userId: currentUserId,
+      courtId,
+      slotDate: selectedDate,
+      slots: selected.map((s) => ({ hour: s.hour, label: s.label })),
+      totalPrice,
+      payment,
+      name,
+      email,
+      phone,
+    };
 
     let result;
     try {
@@ -447,28 +523,22 @@ function CustomerApp() {
       return;
     }
 
-    if (!result.redirectUrl) {
-      setBookingError("Could not start payment. Please try again.");
+    const nextAction = result.nextAction;
+
+    if (nextAction?.type === "redirect" && nextAction.redirect?.url) {
+      sessionStorage.setItem("cf_pending_payment", JSON.stringify({ ...pending, intentId: result.intentId }));
+      window.location.href = nextAction.redirect.url;
       return;
     }
 
-    sessionStorage.setItem(
-      "cf_pending_payment",
-      JSON.stringify({
-        intentId: result.intentId,
-        userId: currentUserId,
-        courtId,
-        slotDate: selectedDate,
-        slots: selected.map((s) => ({ hour: s.hour, label: s.label })),
-        totalPrice,
-        payment,
-        name,
-        email,
-        phone,
-      })
-    );
+    if (nextAction?.type === "consume_qr" && nextAction.code?.image_url) {
+      setQrInfo({ imageUrl: nextAction.code.image_url, testUrl: nextAction.code.test_url });
+      setStep("qr");
+      pollQrPayment(result.intentId, pending);
+      return;
+    }
 
-    window.location.href = result.redirectUrl;
+    setBookingError("Could not start payment. Please try again.");
   }
 
   const canSubmitDetails = name && email && phone && payment && agree1 && agree2;
@@ -588,9 +658,10 @@ function CustomerApp() {
           <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx }}>
               {step === "details" && "Details and payment"}
+              {step === "qr" && "Scan to pay"}
               {step === "confirm" && "Confirmed"}
             </span>
-            {step !== "confirm" && (
+            {step !== "confirm" && step !== "qr" && (
               <button className="cf-btn" onClick={() => setPanelOpen(false)} style={{ background: "none", padding: 4 }} aria-label="Close booking panel">
                 <X size={18} color={COLORS.muted} />
               </button>
@@ -712,6 +783,28 @@ function CustomerApp() {
                 >
                   Pay ₱{totalPrice}
                 </button>
+              </div>
+            )}
+
+            {step === "qr" && qrInfo && (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>
+                  Scan this QR code with your GCash, Maya, or banking app to pay ₱{totalPrice}.
+                </p>
+                <img src={qrInfo.imageUrl} alt="QR Ph payment code" style={{ width: 220, height: 220, margin: "0 auto 16px", border: `1px solid ${COLORS.border}`, borderRadius: 8 }} />
+                <p style={{ fontSize: 12, color: COLORS.muted, marginBottom: 16 }}>
+                  Waiting for payment confirmation...
+                </p>
+                {qrInfo.testUrl && (
+                  <a
+                    href={qrInfo.testUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: 12, color: COLORS.goldDark, textDecoration: "underline" }}
+                  >
+                    Simulate payment (test mode only)
+                  </a>
+                )}
               </div>
             )}
 
