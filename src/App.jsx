@@ -413,6 +413,8 @@ function CustomerApp() {
     }
   }
 
+  const PAYMONGO_TYPE = { qrph: "qrph", gcash: "gcash", maya: "paymaya" };
+
   async function handleConfirm() {
     setBookingError("");
 
@@ -421,47 +423,52 @@ function CustomerApp() {
       return;
     }
 
-    if (phone && phone !== profile.phone) {
-      await supabase.from("users").update({ phone }).eq("id", currentUserId);
-      setProfile((prev) => ({ ...prev, phone }));
+    const pmType = PAYMONGO_TYPE[payment];
+    if (!pmType) {
+      setBookingError("Please select a valid payment method.");
+      return;
     }
 
-    const { data: bookingRow, error: bookingErr } = await supabase
-      .from("bookings")
-      .insert({
-        user_id: currentUserId,
-        total_amount: totalPrice,
-        payment_method: payment,
-        payment_status: "paid",
+    const returnUrl = `${window.location.origin}/payment-return`;
+
+    let result;
+    try {
+      const res = await fetch(
+        "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/create-payment",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: totalPrice, paymentMethodType: pmType, returnUrl }),
+        }
+      );
+      result = await res.json();
+    } catch (err) {
+      setBookingError("Could not reach the payment service. Please try again.");
+      return;
+    }
+
+    if (!result.redirectUrl) {
+      setBookingError("Could not start payment. Please try again.");
+      return;
+    }
+
+    sessionStorage.setItem(
+      "cf_pending_payment",
+      JSON.stringify({
+        intentId: result.intentId,
+        userId: currentUserId,
+        courtId,
+        slotDate: selectedDate,
+        slots: selected.map((s) => ({ hour: s.hour, label: s.label })),
+        totalPrice,
+        payment,
+        name,
+        email,
+        phone,
       })
-      .select()
-      .single();
+    );
 
-    if (bookingErr) {
-      setBookingError(bookingErr.message);
-      return;
-    }
-
-    const slotRows = selected.map((s) => ({
-      booking_id: bookingRow.id,
-      court_id: courtId,
-      slot_date: selectedDate,
-      start_time: `${String(s.hour).padStart(2, "0")}:00:00`,
-      end_time: `${String(s.hour + 1).padStart(2, "0")}:00:00`,
-      price: 300,
-      status: "booked",
-    }));
-
-    const { error: slotsErr } = await supabase.from("booking_slots").insert(slotRows);
-
-    if (slotsErr) {
-      setBookingError(slotsErr.message);
-      return;
-    }
-
-    await loadMyBookings();
-    await loadAvailability(selectedDate);
-    setStep("confirm");
+    window.location.href = result.redirectUrl;
   }
 
   const canSubmitDetails = name && email && phone && payment && agree1 && agree2;
@@ -1737,11 +1744,126 @@ function AdminApp() {
   );
 }
 
+function PaymentReturn() {
+  const [status, setStatus] = useState("checking");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    async function run() {
+      const pendingRaw = sessionStorage.getItem("cf_pending_payment");
+      if (!pendingRaw) {
+        setStatus("failed");
+        setMessage("No pending payment was found. If you completed a payment, contact support.");
+        return;
+      }
+      const pending = JSON.parse(pendingRaw);
+
+      let result;
+      try {
+        const res = await fetch(
+          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/check-payment",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ intentId: pending.intentId }),
+          }
+        );
+        result = await res.json();
+      } catch (err) {
+        setStatus("failed");
+        setMessage("Could not verify payment status. Please contact support.");
+        return;
+      }
+
+      if (result.status !== "succeeded") {
+        setStatus("failed");
+        setMessage("Payment was not completed. Your slots were not booked.");
+        return;
+      }
+
+      const { data: bookingRow, error: bookingErr } = await supabase
+        .from("bookings")
+        .insert({
+          user_id: pending.userId,
+          total_amount: pending.totalPrice,
+          payment_method: pending.payment,
+          payment_status: "paid",
+        })
+        .select()
+        .single();
+
+      if (bookingErr) {
+        setStatus("failed");
+        setMessage(bookingErr.message);
+        return;
+      }
+
+      const slotRows = pending.slots.map((s) => ({
+        booking_id: bookingRow.id,
+        court_id: pending.courtId,
+        slot_date: pending.slotDate,
+        start_time: `${String(s.hour).padStart(2, "0")}:00:00`,
+        end_time: `${String(s.hour + 1).padStart(2, "0")}:00:00`,
+        price: 300,
+        status: "booked",
+      }));
+
+      const { error: slotsErr } = await supabase.from("booking_slots").insert(slotRows);
+
+      if (slotsErr) {
+        setStatus("failed");
+        setMessage(slotsErr.message);
+        return;
+      }
+
+      if (pending.phone) {
+        await supabase.from("users").update({ phone: pending.phone }).eq("id", pending.userId);
+      }
+
+      sessionStorage.removeItem("cf_pending_payment");
+      setStatus("success");
+    }
+    run();
+  }, []);
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 360, textAlign: "center", padding: 24 }}>
+        {status === "checking" && (
+          <p style={{ fontSize: 14, color: COLORS.muted }}>Confirming your payment...</p>
+        )}
+        {status === "success" && (
+          <>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: COLORS.successBg, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Check size={26} color={COLORS.success} />
+            </div>
+            <p style={{ fontSize: 16, fontWeight: 500, color: COLORS.onyx, marginBottom: 6 }}>Booking confirmed</p>
+            <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 24 }}>Your payment went through and your slot is booked.</p>
+            <a href="/account" style={{ display: "inline-block", height: 42, lineHeight: "42px", padding: "0 20px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, textDecoration: "none" }}>
+              View my bookings
+            </a>
+          </>
+        )}
+        {status === "failed" && (
+          <>
+            <p style={{ fontSize: 16, fontWeight: 500, color: COLORS.onyx, marginBottom: 6 }}>Payment not completed</p>
+            <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 24 }}>{message}</p>
+            <a href="/" style={{ display: "inline-block", height: 42, lineHeight: "42px", padding: "0 20px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, textDecoration: "none" }}>
+              Back to home
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/admin/*" element={<AdminApp />} />
+        <Route path="/payment-return" element={<PaymentReturn />} />
         <Route path="/*" element={<CustomerApp />} />
       </Routes>
     </BrowserRouter>
