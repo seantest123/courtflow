@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,10 +9,16 @@ const corsHeaders = {
 const PAYMONGO_KEY = Deno.env.get("PAYMONGO_SECRET_KEY");
 const AUTH = "Basic " + btoa(`${PAYMONGO_KEY}:`);
 
+const supabaseAdmin = createClient(
+  Deno.env.get("SUPABASE_URL"),
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const { amount, paymentMethodType, returnUrl } = await req.json();
+  const body = await req.json();
+  const { amount, paymentMethodType, returnUrl, userId, courtId, slotDate, slots, paymentMethod, guestPhone } = body;
 
   const intentRes = await fetch("https://api.paymongo.com/v1/payment_intents", {
     method: "POST",
@@ -47,8 +54,19 @@ serve(async (req) => {
     }),
   });
   const attached = await attachRes.json();
-
   const nextAction = attached.data?.attributes?.next_action || null;
+
+  await supabaseAdmin.from("pending_payments").insert({
+    intent_id: intentId,
+    user_id: userId,
+    court_id: courtId,
+    slot_date: slotDate,
+    slots,
+    total_amount: amount,
+    payment_method: paymentMethod,
+    guest_phone: guestPhone,
+    status: "pending",
+  });
 
   return new Response(JSON.stringify({ intentId, nextAction }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },

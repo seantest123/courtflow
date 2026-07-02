@@ -63,7 +63,7 @@ function formatHourLabel(h) {
 const PAYMENT_METHODS = [
   { id: "qrph", label: "QR Ph (InstaPay)", feePct: 0.02, available: true },
   { id: "gcash", label: "GCash", feePct: 0.03, available: true },
-  { id: "maya", label: "Maya", feePct: 0.03, available: true },
+  { id: "maya", label: "Maya", feePct: 0.03, available: false },
   { id: "card", label: "Credit / Debit card", feePct: 0.03125, flatFee: 13.39, available: false },
 ];
 
@@ -90,6 +90,11 @@ function toDateStr(d) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function dayOfWeekName(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()];
 }
 
 function todayStr() {
@@ -146,6 +151,10 @@ function CustomerApp() {
   const [authPassword, setAuthPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [bookedHours, setBookedHours] = useState([]);
@@ -285,16 +294,32 @@ function CustomerApp() {
     setBookedHours(all);
     setMyHours(mine);
 
+    const dayName = dayOfWeekName(dateStr);
     const { data: closureRows, error: closureErr } = await supabase
       .from("closures")
-      .select("reason")
-      .eq("start_date", dateStr);
+      .select("type, start_time, end_time, reason")
+      .or(`start_date.eq.${dateStr},day_of_week.eq.${dayName}`);
 
     if (closureErr) {
       console.error("Could not load closures:", closureErr.message);
       setDayClosure(null);
+    } else if (!closureRows || closureRows.length === 0) {
+      setDayClosure(null);
     } else {
-      setDayClosure(closureRows && closureRows.length > 0 ? closureRows[0] : null);
+      const fullDayRow = closureRows.find((c) => c.type !== "partial_time");
+      if (fullDayRow) {
+        setDayClosure({ fullDay: true, reason: fullDayRow.reason, partialHours: new Set() });
+      } else {
+        const partialHours = new Set();
+        const reasons = [];
+        closureRows.forEach((c) => {
+          const startH = parseInt(c.start_time.slice(0, 2), 10);
+          const endH = parseInt(c.end_time.slice(0, 2), 10);
+          for (let h = startH; h < endH; h++) partialHours.add(h);
+          reasons.push(c.reason);
+        });
+        setDayClosure({ fullDay: false, reason: reasons.join("; "), partialHours });
+      }
     }
   }
 
@@ -318,7 +343,8 @@ function CustomerApp() {
   }
 
   function toggleSlot(slot) {
-    if (dayClosure) return;
+    if (dayClosure?.fullDay) return;
+    if (dayClosure?.partialHours?.has(slot.hour)) return;
     if (selectedDate < todayStr()) return;
     if (bookedHours.includes(slot.hour)) return;
     const isTodaySel = selectedDate === todayStr();
@@ -343,6 +369,21 @@ function CustomerApp() {
     setPhone(profile.phone || "");
     setStep("details");
     setPanelOpen(true);
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotLoading(false);
+    if (error) {
+      setForgotError(error.message);
+      return;
+    }
+    setForgotSent(true);
   }
 
   async function handleLoginSubmit(e) {
@@ -416,66 +457,35 @@ function CustomerApp() {
 
   const PAYMONGO_TYPE = { qrph: "qrph", gcash: "gcash", maya: "paymaya" };
 
-  async function createBookingRecord(pending) {
-    const { data: bookingRow, error: bookingErr } = await supabase
-      .from("bookings")
-      .insert({
-        user_id: pending.userId,
-        total_amount: pending.totalPrice,
-        payment_method: pending.payment,
-        payment_status: "paid",
-      })
-      .select()
-      .single();
-
-    if (bookingErr) return { error: bookingErr.message };
-
-    const slotRows = pending.slots.map((s) => ({
-      booking_id: bookingRow.id,
-      court_id: pending.courtId,
-      slot_date: pending.slotDate,
-      start_time: `${String(s.hour).padStart(2, "0")}:00:00`,
-      end_time: `${String(s.hour + 1).padStart(2, "0")}:00:00`,
-      price: 300,
-      status: "booked",
-    }));
-
-    const { error: slotsErr } = await supabase.from("booking_slots").insert(slotRows);
-    if (slotsErr) return { error: slotsErr.message };
-
-    if (pending.phone) {
-      await supabase.from("users").update({ phone: pending.phone }).eq("id", pending.userId);
-    }
-    return { success: true };
+  async function callFinalize(intentId) {
+    const res = await fetch(
+      "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/finalize-booking",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intentId }),
+      }
+    );
+    return res.json();
   }
 
-  function pollQrPayment(intentId, pending) {
+  function pollQrPayment(intentId, slotDate) {
     const interval = setInterval(async () => {
       let result;
       try {
-        const res = await fetch(
-          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/check-payment",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ intentId }),
-          }
-        );
-        result = await res.json();
+        result = await callFinalize(intentId);
       } catch (err) {
         return;
       }
-      if (result.status === "succeeded") {
+      if (result.status === "completed") {
         clearInterval(interval);
-        const outcome = await createBookingRecord(pending);
-        if (outcome.error) {
-          setBookingError(outcome.error);
-          setStep("details");
-          return;
-        }
         await loadMyBookings();
-        await loadAvailability(pending.slotDate);
+        await loadAvailability(slotDate);
         setStep("confirm");
+      } else if (result.status === "error" || result.status === "not_found") {
+        clearInterval(interval);
+        setBookingError(result.message || "Something went wrong confirming your payment.");
+        setStep("details");
       }
     }, 4000);
   }
@@ -495,17 +505,6 @@ function CustomerApp() {
     }
 
     const returnUrl = `${window.location.origin}/payment-return`;
-    const pending = {
-      userId: currentUserId,
-      courtId,
-      slotDate: selectedDate,
-      slots: selected.map((s) => ({ hour: s.hour, label: s.label })),
-      totalPrice,
-      payment,
-      name,
-      email,
-      phone,
-    };
 
     let result;
     try {
@@ -514,7 +513,17 @@ function CustomerApp() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: totalPrice, paymentMethodType: pmType, returnUrl }),
+          body: JSON.stringify({
+            amount: totalPrice,
+            paymentMethodType: pmType,
+            returnUrl,
+            userId: currentUserId,
+            courtId,
+            slotDate: selectedDate,
+            slots: selected.map((s) => ({ hour: s.hour })),
+            paymentMethod: payment,
+            guestPhone: phone,
+          }),
         }
       );
       result = await res.json();
@@ -526,7 +535,7 @@ function CustomerApp() {
     const nextAction = result.nextAction;
 
     if (nextAction?.type === "redirect" && nextAction.redirect?.url) {
-      sessionStorage.setItem("cf_pending_payment", JSON.stringify({ ...pending, intentId: result.intentId }));
+      sessionStorage.setItem("cf_pending_intent", result.intentId);
       window.location.href = nextAction.redirect.url;
       return;
     }
@@ -534,7 +543,7 @@ function CustomerApp() {
     if (nextAction?.type === "consume_qr" && nextAction.code?.image_url) {
       setQrInfo({ imageUrl: nextAction.code.image_url, testUrl: nextAction.code.test_url });
       setStep("qr");
-      pollQrPayment(result.intentId, pending);
+      pollQrPayment(result.intentId, selectedDate);
       return;
     }
 
@@ -838,18 +847,65 @@ function CustomerApp() {
               </div>
             )}
 
-            <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.border}`, marginBottom: 20 }}>
-              {["login", "register"].map((m) => (
-                <div
-                  key={m}
-                  onClick={() => setAuthMode(m)}
-                  style={{ flex: 1, textAlign: "center", padding: "10px 0", cursor: "pointer", borderBottom: authMode === m ? `2px solid ${COLORS.onyx}` : "none", fontSize: 14, fontWeight: authMode === m ? 500 : 400, color: authMode === m ? COLORS.onyx : COLORS.muted }}
-                >
-                  {m === "login" ? "Log in" : "Create account"}
-                </div>
-              ))}
-            </div>
+            {authMode !== "forgot" && (
+              <div style={{ display: "flex", borderBottom: `1px solid ${COLORS.border}`, marginBottom: 20 }}>
+                {["login", "register"].map((m) => (
+                  <div
+                    key={m}
+                    onClick={() => setAuthMode(m)}
+                    style={{ flex: 1, textAlign: "center", padding: "10px 0", cursor: "pointer", borderBottom: authMode === m ? `2px solid ${COLORS.onyx}` : "none", fontSize: 14, fontWeight: authMode === m ? 500 : 400, color: authMode === m ? COLORS.onyx : COLORS.muted }}
+                  >
+                    {m === "login" ? "Log in" : "Create account"}
+                  </div>
+                ))}
+              </div>
+            )}
 
+            {authMode === "forgot" ? (
+              forgotSent ? (
+                <div>
+                  <p style={{ fontSize: 13, color: COLORS.text, marginBottom: 16 }}>
+                    If an account exists for {forgotEmail}, a password reset link has been sent.
+                  </p>
+                  <button
+                    className="cf-btn"
+                    onClick={() => { setAuthMode("login"); setForgotSent(false); }}
+                    style={{ fontSize: 13, color: COLORS.goldDark, background: "none" }}
+                  >
+                    Back to log in
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword}>
+                  <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>
+                    Enter your account email and we'll send you a reset link.
+                  </p>
+                  {forgotError && (
+                    <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                      {forgotError}
+                    </div>
+                  )}
+                  <label className="cf-label">Email</label>
+                  <input className="cf-input" style={{ marginBottom: 16 }} type="email" required value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+                  <button
+                    type="submit"
+                    className="cf-btn"
+                    disabled={forgotLoading}
+                    style={{ width: "100%", height: 42, borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 500, marginBottom: 12, opacity: forgotLoading ? 0.6 : 1 }}
+                  >
+                    {forgotLoading ? "Sending..." : "Send reset link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="cf-btn"
+                    onClick={() => setAuthMode("login")}
+                    style={{ width: "100%", fontSize: 13, color: COLORS.muted, background: "none" }}
+                  >
+                    Back to log in
+                  </button>
+                </form>
+              )
+            ) : (
             <form onSubmit={handleLoginSubmit}>
               {authError && (
                 <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
@@ -874,7 +930,12 @@ function CustomerApp() {
 
               {authMode === "login" && (
                 <div style={{ textAlign: "right", marginBottom: 20 }}>
-                  <span style={{ fontSize: 12, color: COLORS.goldDark }}>Forgot password?</span>
+                  <span
+                    onClick={() => setAuthMode("forgot")}
+                    style={{ fontSize: 12, color: COLORS.goldDark, cursor: "pointer" }}
+                  >
+                    Forgot password?
+                  </span>
                 </div>
               )}
 
@@ -887,10 +948,13 @@ function CustomerApp() {
                 {authLoading ? "Please wait..." : authMode === "login" ? "Log in and continue" : "Create account and continue"}
               </button>
             </form>
+            )}
 
-            <p style={{ fontSize: 11, color: COLORS.muted, textAlign: "center", marginTop: 12 }}>
-              Logging in keeps your booking tied to your account for later cancellation or reschedule.
-            </p>
+            {authMode !== "forgot" && (
+              <p style={{ fontSize: 11, color: COLORS.muted, textAlign: "center", marginTop: 12 }}>
+                Logging in keeps your booking tied to your account for later cancellation or reschedule.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -972,7 +1036,8 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   const isPastDate = selectedDate < todayStr();
 
   function cellStatus(slot) {
-    if (dayClosure) return "unavailable";
+    if (dayClosure?.fullDay) return "unavailable";
+    if (dayClosure?.partialHours?.has(slot.hour)) return "unavailable";
     if (isPastDate) return "unavailable";
     if (isToday && slot.hour <= currentHour) return "unavailable";
     if (myHours.includes(slot.hour)) return "mine";
@@ -1053,7 +1118,9 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
       {dayClosure && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.unavailable.bg, border: `1px solid ${STATUS.unavailable.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
           <Lock size={14} color={STATUS.unavailable.text} />
-          <span style={{ fontSize: 13, color: STATUS.unavailable.text }}>Closed: {dayClosure.reason}</span>
+          <span style={{ fontSize: 13, color: STATUS.unavailable.text }}>
+            {dayClosure.fullDay ? "Closed" : "Partially closed"}: {dayClosure.reason}
+          </span>
         </div>
       )}
 
@@ -1320,7 +1387,11 @@ function AdminView({ courtId }) {
   const [search, setSearch] = useState("");
   const [closures, setClosures] = useState([]);
   const [newClosureOpen, setNewClosureOpen] = useState(false);
+  const [newClosureType, setNewClosureType] = useState("single_date");
   const [newClosureDate, setNewClosureDate] = useState("");
+  const [newClosureStartTime, setNewClosureStartTime] = useState("");
+  const [newClosureEndTime, setNewClosureEndTime] = useState("");
+  const [newClosureDayOfWeek, setNewClosureDayOfWeek] = useState("Monday");
   const [newClosureReason, setNewClosureReason] = useState("");
 
   const [walkInOpen, setWalkInOpen] = useState(false);
@@ -1441,18 +1512,30 @@ function AdminView({ courtId }) {
   }
 
   async function addClosure() {
-    if (!newClosureDate || !newClosureReason) return;
-    const { error } = await supabaseAdmin.from("closures").insert({
-      court_id: courtId,
-      type: "single_date",
-      start_date: newClosureDate,
-      reason: newClosureReason,
-    });
+    if (!newClosureReason) return;
+
+    let row = { court_id: courtId, type: newClosureType, reason: newClosureReason };
+
+    if (newClosureType === "single_date") {
+      if (!newClosureDate) return;
+      row.start_date = newClosureDate;
+    } else if (newClosureType === "partial_time") {
+      if (!newClosureDate || !newClosureStartTime || !newClosureEndTime) return;
+      row.start_date = newClosureDate;
+      row.start_time = newClosureStartTime;
+      row.end_time = newClosureEndTime;
+    } else if (newClosureType === "recurring_weekly") {
+      row.day_of_week = newClosureDayOfWeek;
+    }
+
+    const { error } = await supabaseAdmin.from("closures").insert(row);
     if (error) {
       alert(error.message);
       return;
     }
     setNewClosureDate("");
+    setNewClosureStartTime("");
+    setNewClosureEndTime("");
     setNewClosureReason("");
     setNewClosureOpen(false);
     loadClosures();
@@ -1465,6 +1548,17 @@ function AdminView({ courtId }) {
       return;
     }
     loadClosures();
+  }
+
+  async function adminCancelBooking(slotId) {
+    if (!confirm("Cancel this booking? This does not process a refund.")) return;
+    const { error } = await supabaseAdmin.from("booking_slots").update({ status: "cancelled" }).eq("id", slotId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    loadBookings();
+    loadStats();
   }
 
   async function addWalkIn() {
@@ -1604,6 +1698,7 @@ function AdminView({ courtId }) {
                   <th>Customer</th>
                   <th>Amount</th>
                   <th>Status</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -1619,6 +1714,17 @@ function AdminView({ courtId }) {
                         <span style={{ background: cancelled ? COLORS.dangerBg : COLORS.successBg, color: cancelled ? COLORS.danger : COLORS.success, fontSize: 11, padding: "2px 8px", borderRadius: 6 }}>
                           {cancelled ? "Cancelled" : "Booked"}
                         </span>
+                      </td>
+                      <td>
+                        {!cancelled && (
+                          <button
+                            className="cf-btn"
+                            onClick={() => adminCancelBooking(b.id)}
+                            style={{ height: 28, padding: "0 10px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 12, color: COLORS.danger }}
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1681,22 +1787,62 @@ function AdminView({ courtId }) {
               </button>
             </div>
 
-            {closures.map((c) => (
-              <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8, background: "#fff" }}>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{c.start_date}</p>
-                  <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{c.reason}</p>
+            {closures.map((c) => {
+              const label =
+                c.type === "recurring_weekly"
+                  ? `Every ${c.day_of_week}`
+                  : c.type === "partial_time"
+                  ? `${c.start_date} · ${c.start_time?.slice(0, 5)}–${c.end_time?.slice(0, 5)}`
+                  : c.start_date;
+              return (
+                <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8, background: "#fff" }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{label}</p>
+                    <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{c.reason}</p>
+                  </div>
+                  <button className="cf-btn" onClick={() => deleteClosure(c.id)} style={{ background: "none" }} aria-label="Remove closure">
+                    <Trash2 size={15} color={COLORS.muted} />
+                  </button>
                 </div>
-                <button className="cf-btn" onClick={() => deleteClosure(c.id)} style={{ background: "none" }} aria-label="Remove closure">
-                  <Trash2 size={15} color={COLORS.muted} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
 
             {newClosureOpen ? (
-              <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginTop: 8 }}>
-                <label className="cf-label">Date</label>
-                <input className="cf-input" style={{ marginBottom: 12 }} type="date" value={newClosureDate} onChange={(e) => setNewClosureDate(e.target.value)} />
+              <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginTop: 8, maxWidth: 360 }}>
+                <label className="cf-label">Type</label>
+                <select className="cf-input" style={{ marginBottom: 12 }} value={newClosureType} onChange={(e) => setNewClosureType(e.target.value)}>
+                  <option value="single_date">Single date (full day)</option>
+                  <option value="partial_time">Partial time range</option>
+                  <option value="recurring_weekly">Recurring weekly</option>
+                </select>
+
+                {(newClosureType === "single_date" || newClosureType === "partial_time") && (
+                  <>
+                    <label className="cf-label">Date</label>
+                    <input className="cf-input" style={{ marginBottom: 12 }} type="date" value={newClosureDate} onChange={(e) => setNewClosureDate(e.target.value)} />
+                  </>
+                )}
+
+                {newClosureType === "partial_time" && (
+                  <>
+                    <label className="cf-label">From</label>
+                    <input className="cf-input" style={{ marginBottom: 12 }} type="time" value={newClosureStartTime} onChange={(e) => setNewClosureStartTime(e.target.value)} />
+                    <label className="cf-label">To</label>
+                    <input className="cf-input" style={{ marginBottom: 12 }} type="time" value={newClosureEndTime} onChange={(e) => setNewClosureEndTime(e.target.value)} />
+                  </>
+                )}
+
+                {newClosureType === "recurring_weekly" && (
+                  <>
+                    <label className="cf-label">Day of week</label>
+                    <select className="cf-input" style={{ marginBottom: 12 }} value={newClosureDayOfWeek} onChange={(e) => setNewClosureDayOfWeek(e.target.value)}>
+                      {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
                 <label className="cf-label">Reason (shown to customers)</label>
                 <input className="cf-input" style={{ marginBottom: 12 }} value={newClosureReason} onChange={(e) => setNewClosureReason(e.target.value)} placeholder="Closed for maintenance" />
                 <div style={{ display: "flex", gap: 8 }}>
@@ -1843,22 +1989,21 @@ function PaymentReturn() {
 
   useEffect(() => {
     async function run() {
-      const pendingRaw = sessionStorage.getItem("cf_pending_payment");
-      if (!pendingRaw) {
+      const intentId = sessionStorage.getItem("cf_pending_intent");
+      if (!intentId) {
         setStatus("failed");
-        setMessage("No pending payment was found. If you completed a payment, contact support.");
+        setMessage("No pending payment was found. If you completed a payment, check My bookings before contacting support.");
         return;
       }
-      const pending = JSON.parse(pendingRaw);
 
       let result;
       try {
         const res = await fetch(
-          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/check-payment",
+          "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/finalize-booking",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ intentId: pending.intentId }),
+            body: JSON.stringify({ intentId }),
           }
         );
         result = await res.json();
@@ -1868,53 +2013,20 @@ function PaymentReturn() {
         return;
       }
 
-      if (result.status !== "succeeded") {
+      if (result.status === "completed") {
+        sessionStorage.removeItem("cf_pending_intent");
+        setStatus("success");
+        return;
+      }
+
+      if (result.status === "not_paid") {
         setStatus("failed");
         setMessage("Payment was not completed. Your slots were not booked.");
         return;
       }
 
-      const { data: bookingRow, error: bookingErr } = await supabase
-        .from("bookings")
-        .insert({
-          user_id: pending.userId,
-          total_amount: pending.totalPrice,
-          payment_method: pending.payment,
-          payment_status: "paid",
-        })
-        .select()
-        .single();
-
-      if (bookingErr) {
-        setStatus("failed");
-        setMessage(bookingErr.message);
-        return;
-      }
-
-      const slotRows = pending.slots.map((s) => ({
-        booking_id: bookingRow.id,
-        court_id: pending.courtId,
-        slot_date: pending.slotDate,
-        start_time: `${String(s.hour).padStart(2, "0")}:00:00`,
-        end_time: `${String(s.hour + 1).padStart(2, "0")}:00:00`,
-        price: 300,
-        status: "booked",
-      }));
-
-      const { error: slotsErr } = await supabase.from("booking_slots").insert(slotRows);
-
-      if (slotsErr) {
-        setStatus("failed");
-        setMessage(slotsErr.message);
-        return;
-      }
-
-      if (pending.phone) {
-        await supabase.from("users").update({ phone: pending.phone }).eq("id", pending.userId);
-      }
-
-      sessionStorage.removeItem("cf_pending_payment");
-      setStatus("success");
+      setStatus("failed");
+      setMessage(result.message || "Something went wrong confirming your payment.");
     }
     run();
   }, []);
@@ -1951,12 +2063,83 @@ function PaymentReturn() {
   );
 }
 
+function ResetPassword() {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleReset(e) {
+    e.preventDefault();
+    setError("");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setLoading(true);
+    const { error: updateErr } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (updateErr) {
+      setError(updateErr.message);
+      return;
+    }
+    setDone(true);
+  }
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <style>{`
+        .cf-btn { cursor: pointer; border: none; font-family: inherit; }
+        .cf-input { width: 100%; height: 40px; border-radius: 8px; border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; }
+        .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
+      `}</style>
+      <div style={{ width: 360, background: "#fff", borderRadius: 16, padding: 28 }}>
+        <p style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, marginBottom: 16 }}>Reset your password</p>
+        {done ? (
+          <>
+            <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>Your password has been updated.</p>
+            <a href="/" style={{ display: "inline-block", height: 42, lineHeight: "42px", padding: "0 20px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, textDecoration: "none" }}>
+              Go to CourtFlow
+            </a>
+          </>
+        ) : (
+          <form onSubmit={handleReset}>
+            {error && (
+              <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                {error}
+              </div>
+            )}
+            <label className="cf-label">New password</label>
+            <input className="cf-input" style={{ marginBottom: 12 }} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <label className="cf-label">Confirm new password</label>
+            <input className="cf-input" style={{ marginBottom: 16 }} type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            <button
+              type="submit"
+              className="cf-btn"
+              disabled={loading}
+              style={{ width: "100%", height: 42, borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 500, opacity: loading ? 0.6 : 1 }}
+            >
+              {loading ? "Saving..." : "Set new password"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/admin/*" element={<AdminApp />} />
         <Route path="/payment-return" element={<PaymentReturn />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/*" element={<CustomerApp />} />
       </Routes>
     </BrowserRouter>
