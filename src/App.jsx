@@ -1266,6 +1266,23 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
 function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
+  const [balanceHistory, setBalanceHistory] = useState([]);
+
+  useEffect(() => {
+    loadBalanceHistory();
+  }, []);
+
+  async function loadBalanceHistory() {
+    const { data, error } = await supabase
+      .from("balance_transactions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error(error.message);
+      return;
+    }
+    setBalanceHistory(data || []);
+  }
 
   useEffect(() => {
     if (!rescheduleId || !courtId) return;
@@ -1329,6 +1346,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
     await loadMyBookings();
     await loadAvailability(selectedDate);
     await reloadProfile();
+    await loadBalanceHistory();
   }
 
   async function rescheduleBooking(id, newStart, newEnd, newLabel) {
@@ -1412,6 +1430,28 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
       <p style={{ fontSize: 12, color: COLORS.muted, marginTop: 12 }}>
         Rescheduling or converting to account balance is available up to 12 hours before your booking. After that, bookings are final and non-refundable.
       </p>
+
+      <h3 style={{ fontSize: 18, color: COLORS.onyx, margin: "32px 0 16px" }}>Balance history</h3>
+      {balanceHistory.length === 0 ? (
+        <p style={{ fontSize: 13, color: COLORS.muted }}>No balance activity yet.</p>
+      ) : (
+        balanceHistory.map((t) => {
+          const isCredit = Number(t.amount) > 0;
+          return (
+            <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8, background: "#fff" }}>
+              <div>
+                <p style={{ fontSize: 13, color: COLORS.onyx, margin: "0 0 2px" }}>{t.description}</p>
+                <p style={{ fontSize: 11, color: COLORS.muted, margin: 0 }}>
+                  {new Date(t.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 500, color: isCredit ? COLORS.success : COLORS.danger }}>
+                {isCredit ? "+" : ""}₱{Number(t.amount).toFixed(2)}
+              </span>
+            </div>
+          );
+        })
+      )}
 
       {rescheduleId && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(18,16,13,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
