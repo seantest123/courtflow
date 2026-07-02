@@ -1150,21 +1150,157 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
   );
 }
 
-function AdminView({
-  adminTab, setAdminTab, bookings, closures, setClosures,
-  newClosureOpen, setNewClosureOpen, newClosureReason, setNewClosureReason,
-  newClosureWhen, setNewClosureWhen,
-}) {
-  function addClosure() {
-    if (!newClosureReason || !newClosureWhen) return;
-    setClosures((prev) => [
-      { id: `c-${Date.now()}`, type: "Single date", when: newClosureWhen, reason: newClosureReason },
-      ...prev,
-    ]);
-    setNewClosureReason("");
-    setNewClosureWhen("");
-    setNewClosureOpen(false);
+function AdminView({ courtId }) {
+  const [adminTab, setAdminTab] = useState("dashboard");
+
+  const [stats, setStats] = useState({ today: 0, week: 0, occupancy: 0, revenue: 0 });
+  const [allBookings, setAllBookings] = useState([]);
+  const [search, setSearch] = useState("");
+  const [closures, setClosures] = useState([]);
+  const [newClosureOpen, setNewClosureOpen] = useState(false);
+  const [newClosureDate, setNewClosureDate] = useState("");
+  const [newClosureReason, setNewClosureReason] = useState("");
+
+  const [walkInOpen, setWalkInOpen] = useState(false);
+  const [walkInName, setWalkInName] = useState("");
+  const [walkInPhone, setWalkInPhone] = useState("");
+  const [walkInDate, setWalkInDate] = useState(todayStr());
+  const [walkInHour, setWalkInHour] = useState(6);
+
+  useEffect(() => {
+    loadStats();
+    loadBookings();
+    loadClosures();
+  }, []);
+
+  async function loadStats() {
+    const today = todayStr();
+    const weekAhead = addDays(today, 7);
+
+    const { count: todayCount } = await supabaseAdmin
+      .from("booking_slots")
+      .select("*", { count: "exact", head: true })
+      .eq("slot_date", today)
+      .eq("status", "booked");
+
+    const { count: weekCount } = await supabaseAdmin
+      .from("booking_slots")
+      .select("*", { count: "exact", head: true })
+      .gte("slot_date", today)
+      .lt("slot_date", weekAhead)
+      .eq("status", "booked");
+
+    const { data: revenueRows } = await supabaseAdmin
+      .from("booking_slots")
+      .select("price")
+      .eq("slot_date", today)
+      .eq("status", "booked");
+
+    const revenue = (revenueRows || []).reduce((sum, r) => sum + Number(r.price), 0);
+    const occupancy = Math.round(((todayCount || 0) / 17) * 100);
+
+    setStats({ today: todayCount || 0, week: weekCount || 0, occupancy, revenue });
   }
+
+  async function loadBookings() {
+    const { data, error } = await supabaseAdmin
+      .from("booking_slots")
+      .select("id, slot_date, start_time, end_time, price, status, bookings(payment_status, payment_method, guest_name, guest_phone, users(name, email))")
+      .order("slot_date", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error(error.message);
+      return;
+    }
+    setAllBookings(data || []);
+  }
+
+  async function loadClosures() {
+    const { data, error } = await supabaseAdmin.from("closures").select("*").order("start_date", { ascending: true });
+    if (error) {
+      console.error(error.message);
+      return;
+    }
+    setClosures(data || []);
+  }
+
+  async function addClosure() {
+    if (!newClosureDate || !newClosureReason) return;
+    const { error } = await supabaseAdmin.from("closures").insert({
+      court_id: courtId,
+      type: "single_date",
+      start_date: newClosureDate,
+      reason: newClosureReason,
+    });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setNewClosureDate("");
+    setNewClosureReason("");
+    setNewClosureOpen(false);
+    loadClosures();
+  }
+
+  async function deleteClosure(id) {
+    const { error } = await supabaseAdmin.from("closures").delete().eq("id", id);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    loadClosures();
+  }
+
+  async function addWalkIn() {
+    if (!walkInName || !courtId) return;
+    const { data: bookingRow, error: bookingErr } = await supabaseAdmin
+      .from("bookings")
+      .insert({
+        user_id: null,
+        guest_name: walkInName,
+        guest_phone: walkInPhone,
+        total_amount: 300,
+        payment_method: "cash",
+        payment_status: "paid",
+      })
+      .select()
+      .single();
+
+    if (bookingErr) {
+      alert(bookingErr.message);
+      return;
+    }
+
+    const { error: slotErr } = await supabaseAdmin.from("booking_slots").insert({
+      booking_id: bookingRow.id,
+      court_id: courtId,
+      slot_date: walkInDate,
+      start_time: `${String(walkInHour).padStart(2, "0")}:00:00`,
+      end_time: `${String(walkInHour + 1).padStart(2, "0")}:00:00`,
+      price: 300,
+      status: "booked",
+    });
+
+    if (slotErr) {
+      alert(slotErr.message);
+      return;
+    }
+
+    setWalkInOpen(false);
+    setWalkInName("");
+    setWalkInPhone("");
+    loadStats();
+    loadBookings();
+  }
+
+  const filteredBookings = allBookings.filter((b) => {
+    if (!search) return true;
+    const name = b.bookings?.guest_name || b.bookings?.users?.name || "";
+    const email = b.bookings?.users?.email || "";
+    const q = search.toLowerCase();
+    return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+  });
 
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -1193,10 +1329,10 @@ function AdminView({
             <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 20 }}>Dashboard</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
               {[
-                { label: "Today's bookings", value: "3" },
-                { label: "This week", value: "17" },
-                { label: "Occupancy", value: "42%" },
-                { label: "Today's revenue", value: "₱900", gold: true },
+                { label: "Today's bookings", value: stats.today },
+                { label: "Next 7 days", value: stats.week },
+                { label: "Today's occupancy", value: `${stats.occupancy}%` },
+                { label: "Today's revenue", value: `₱${stats.revenue}`, gold: true },
               ].map((m) => (
                 <div key={m.label} style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16 }}>
                   <p style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 6px" }}>{m.label}</p>
@@ -1204,33 +1340,74 @@ function AdminView({
                 </div>
               ))}
             </div>
-            <button className="cf-btn" style={{ height: 40, padding: "0 16px", borderRadius: 8, background: COLORS.pine, color: "#EFF3EC", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-              <Plus size={14} /> Add walk-in booking
-            </button>
+
+            {walkInOpen ? (
+              <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, maxWidth: 360 }}>
+                <label className="cf-label">Customer name</label>
+                <input className="cf-input" style={{ marginBottom: 12 }} value={walkInName} onChange={(e) => setWalkInName(e.target.value)} placeholder="Juan Dela Cruz" />
+                <label className="cf-label">Phone</label>
+                <input className="cf-input" style={{ marginBottom: 12 }} value={walkInPhone} onChange={(e) => setWalkInPhone(e.target.value)} placeholder="09XX XXX XXXX" />
+                <label className="cf-label">Date</label>
+                <input className="cf-input" style={{ marginBottom: 12 }} type="date" value={walkInDate} onChange={(e) => setWalkInDate(e.target.value)} />
+                <label className="cf-label">Start hour</label>
+                <select className="cf-input" style={{ marginBottom: 16 }} value={walkInHour} onChange={(e) => setWalkInHour(Number(e.target.value))}>
+                  {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                    <option key={h} value={h}>{h % 12 === 0 ? 12 : h % 12}:00 {h < 12 ? "AM" : "PM"}</option>
+                  ))}
+                </select>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="cf-btn" onClick={addWalkIn} style={{ height: 36, padding: "0 14px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}>
+                    Save booking
+                  </button>
+                  <button className="cf-btn" onClick={() => setWalkInOpen(false)} style={{ height: 36, padding: "0 14px", borderRadius: 8, background: "none", fontSize: 13, color: COLORS.muted }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="cf-btn" onClick={() => setWalkInOpen(true)} style={{ height: 40, padding: "0 16px", borderRadius: 8, background: COLORS.pine, color: "#EFF3EC", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+                <Plus size={14} /> Add walk-in booking
+              </button>
+            )}
           </div>
         )}
 
         {adminTab === "bookings" && (
           <div>
-            <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 20 }}>Bookings</h2>
+            <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 16 }}>Bookings</h2>
+            <input
+              className="cf-input"
+              style={{ maxWidth: 280, marginBottom: 16 }}
+              placeholder="Search by customer name or email"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ textAlign: "left", color: COLORS.muted, borderBottom: `1px solid ${COLORS.border}` }}>
                   <th style={{ padding: "8px 0" }}>Date / time</th>
+                  <th>Customer</th>
                   <th>Amount</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
-                    <td style={{ padding: "10px 0" }}>{b.dateLabel} · {b.timeLabel}</td>
-                    <td>₱{b.price}</td>
-                    <td>
-                      <span style={{ background: COLORS.successBg, color: COLORS.success, fontSize: 11, padding: "2px 8px", borderRadius: 6 }}>Paid</span>
-                    </td>
-                  </tr>
-                ))}
+                {filteredBookings.map((b) => {
+                  const customerName = b.bookings?.guest_name || b.bookings?.users?.name || "—";
+                  const cancelled = b.status === "cancelled";
+                  return (
+                    <tr key={b.id} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                      <td style={{ padding: "10px 0" }}>{b.slot_date} · {b.start_time.slice(0, 5)}–{b.end_time.slice(0, 5)}</td>
+                      <td>{customerName}</td>
+                      <td>₱{b.price}</td>
+                      <td>
+                        <span style={{ background: cancelled ? COLORS.dangerBg : COLORS.successBg, color: cancelled ? COLORS.danger : COLORS.success, fontSize: 11, padding: "2px 8px", borderRadius: 6 }}>
+                          {cancelled ? "Cancelled" : "Booked"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1241,16 +1418,16 @@ function AdminView({
             <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 20 }}>Availability and closures</h2>
             <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
               <p className="cf-label">Operating hours</p>
-              <p style={{ fontSize: 14, color: COLORS.onyx }}>6:00 AM – 11:00 PM daily (editable)</p>
+              <p style={{ fontSize: 14, color: COLORS.onyx }}>6:00 AM – 11:00 PM daily (editable in a future update)</p>
             </div>
 
             {closures.map((c) => (
               <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8, background: "#fff" }}>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{c.when} · {c.type}</p>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{c.start_date}</p>
                   <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{c.reason}</p>
                 </div>
-                <button className="cf-btn" onClick={() => setClosures((prev) => prev.filter((x) => x.id !== c.id))} style={{ background: "none" }} aria-label="Remove closure">
+                <button className="cf-btn" onClick={() => deleteClosure(c.id)} style={{ background: "none" }} aria-label="Remove closure">
                   <Trash2 size={15} color={COLORS.muted} />
                 </button>
               </div>
@@ -1258,8 +1435,8 @@ function AdminView({
 
             {newClosureOpen ? (
               <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginTop: 8 }}>
-                <label className="cf-label">Date or range</label>
-                <input className="cf-input" style={{ marginBottom: 12 }} value={newClosureWhen} onChange={(e) => setNewClosureWhen(e.target.value)} placeholder="Jul 20, 2026" />
+                <label className="cf-label">Date</label>
+                <input className="cf-input" style={{ marginBottom: 12 }} type="date" value={newClosureDate} onChange={(e) => setNewClosureDate(e.target.value)} />
                 <label className="cf-label">Reason (shown to customers)</label>
                 <input className="cf-input" style={{ marginBottom: 12 }} value={newClosureReason} onChange={(e) => setNewClosureReason(e.target.value)} placeholder="Closed for maintenance" />
                 <div style={{ display: "flex", gap: 8 }}>
@@ -1290,18 +1467,23 @@ function AdminApp() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const [bookings, setBookings] = useState([]);
-  const [closures, setClosures] = useState(INITIAL_CLOSURES);
-  const [newClosureOpen, setNewClosureOpen] = useState(false);
-  const [newClosureReason, setNewClosureReason] = useState("");
-  const [newClosureWhen, setNewClosureWhen] = useState("");
-  const [adminTab, setAdminTab] = useState("dashboard");
+  const [courtId, setCourtId] = useState(null);
 
   async function checkAdmin(userId) {
-  const { data } = await supabaseAdmin.from("users").select("is_admin").eq("id", userId).single();
-  return !!data?.is_admin;
-}
+    const { data } = await supabaseAdmin.from("users").select("is_admin").eq("id", userId).single();
+    return !!data?.is_admin;
+  }
+
+  useEffect(() => {
+    supabase
+      .from("courts")
+      .select("id")
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) setCourtId(data.id);
+      });
+  }, []);
 
   useEffect(() => {
     supabaseAdmin.auth.getSession().then(async ({ data }) => {
@@ -1390,19 +1572,7 @@ function AdminApp() {
           Log out
         </button>
       </div>
-      <AdminView
-        adminTab={adminTab}
-        setAdminTab={setAdminTab}
-        bookings={bookings}
-        closures={closures}
-        setClosures={setClosures}
-        newClosureOpen={newClosureOpen}
-        setNewClosureOpen={setNewClosureOpen}
-        newClosureReason={newClosureReason}
-        setNewClosureReason={setNewClosureReason}
-        newClosureWhen={newClosureWhen}
-        setNewClosureWhen={setNewClosureWhen}
-      />
+      <AdminView courtId={courtId} />
     </div>
   );
 }
