@@ -44,9 +44,9 @@ const COURTS = [
   { id: "court-5", name: "Court 5", tag: "Coming soon", active: false },
 ];
 
-function generateSlots() {
+function generateSlots(startHour = 6, endHour = 23) {
   const slots = [];
-  for (let h = 6; h < 23; h++) {
+  for (let h = startHour; h < endHour; h++) {
     const label = `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "AM" : "PM"} - ${
       (h + 1) % 12 === 0 ? 12 : (h + 1) % 12
     }:00 ${h + 1 < 12 || h + 1 === 24 ? "AM" : "PM"}`;
@@ -56,7 +56,9 @@ function generateSlots() {
   return slots;
 }
 
-const ALL_SLOTS = generateSlots();
+function formatHourLabel(h) {
+  return `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 || h === 24 ? "AM" : "PM"}`;
+}
 
 const PAYMENT_METHODS = [
   { id: "qrph", label: "QR Ph (InstaPay)", feePct: 0.02, available: true },
@@ -133,6 +135,7 @@ function CustomerApp() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [courtId, setCourtId] = useState(null);
+  const [courtSettings, setCourtSettings] = useState({ hours_start: "06:00:00", hours_end: "23:00:00", status: "active" });
   const [bookingError, setBookingError] = useState("");
   const [showLogin, setShowLogin] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -206,11 +209,14 @@ function CustomerApp() {
   useEffect(() => {
     supabase
       .from("courts")
-      .select("id")
+      .select("id, hours_start, hours_end, status")
       .limit(1)
       .single()
       .then(({ data, error }) => {
-        if (data) setCourtId(data.id);
+        if (data) {
+          setCourtId(data.id);
+          setCourtSettings({ hours_start: data.hours_start, hours_end: data.hours_end, status: data.status });
+        }
         if (error) console.error("Could not load court:", error.message);
       });
   }, []);
@@ -460,11 +466,16 @@ function CustomerApp() {
 
   const canSubmitDetails = name && email && phone && payment && agree1 && agree2;
 
+  const startHour = parseInt((courtSettings.hours_start || "06:00:00").slice(0, 2), 10);
+  const endHour = parseInt((courtSettings.hours_end || "23:00:00").slice(0, 2), 10);
+
+  const daySlots = useMemo(() => generateSlots(startHour, endHour), [startHour, endHour]);
+
   const bySection = useMemo(() => {
     const g = { Morning: [], Afternoon: [], Evening: [] };
-    ALL_SLOTS.forEach((s) => g[s.section].push(s));
+    daySlots.forEach((s) => g[s.section].push(s));
     return g;
-  }, []);
+  }, [daySlots]);
 
   const isToday = selectedDate === todayStr();
 
@@ -541,6 +552,9 @@ function CustomerApp() {
           basePrice={basePrice}
           handleBookNow={handleBookNow}
           dayClosure={dayClosure}
+          courtSettings={courtSettings}
+          startHour={startHour}
+          endHour={endHour}
         />
       )}
 
@@ -556,6 +570,7 @@ function CustomerApp() {
           loadAvailability={loadAvailability}
           selectedDate={selectedDate}
           courtId={courtId}
+          daySlots={daySlots}
           onLoginClick={() => setShowLogin(true)}
         />
       )}
@@ -850,7 +865,7 @@ function CustomerApp() {
   );
 }
 
-function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHours, myHours, selected, toggleSlot, basePrice, handleBookNow, dayClosure }) {
+function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHours, myHours, selected, toggleSlot, basePrice, handleBookNow, dayClosure, courtSettings, startHour, endHour }) {
   const [showMonth, setShowMonth] = useState(false);
   const { weeks, monthLabel } = useMemo(() => getMonthMatrix(selectedDate), [selectedDate]);
   const currentHour = new Date().getHours();
@@ -864,6 +879,18 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
     if (bookedHours.includes(slot.hour)) return "booked";
     if (selected.some((s) => s.id === slot.id)) return "selected";
     return "available";
+  }
+
+  if (courtSettings?.status === "maintenance") {
+    return (
+      <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
+        <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
+        <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Court under maintenance</h1>
+        <p style={{ fontSize: 14, color: COLORS.muted }}>
+          We're temporarily closed for maintenance. Please check back soon — bookings will reopen once work is complete.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -921,7 +948,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         )}
       </div>
 
-      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 12 }}>6:00 AM – 11:00 PM | ₱300/hour</p>
+      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 12 }}>{formatHourLabel(startHour)} – {formatHourLabel(endHour)} | ₱300/hour</p>
 
       {dayClosure && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.unavailable.bg, border: `1px solid ${STATUS.unavailable.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
@@ -1029,7 +1056,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, onLoginClick }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
 
@@ -1151,7 +1178,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
               </button>
             </div>
 
-            {ALL_SLOTS.map((slot) => {
+            {daySlots.map((slot) => {
               const isBooked = rescheduleBookedHours.includes(slot.hour);
               const isPast = rescheduleDate === todayStr() && slot.hour <= new Date().getHours();
               const disabled = isBooked || isPast;
@@ -1202,11 +1229,64 @@ function AdminView({ courtId }) {
   const [walkInDate, setWalkInDate] = useState(todayStr());
   const [walkInHour, setWalkInHour] = useState(6);
 
+  const [courtHoursStart, setCourtHoursStart] = useState("06:00");
+  const [courtHoursEnd, setCourtHoursEnd] = useState("23:00");
+  const [courtStatus, setCourtStatus] = useState("active");
+  const [savingCourt, setSavingCourt] = useState(false);
+  const [courtSaved, setCourtSaved] = useState(false);
+
   useEffect(() => {
     loadStats();
     loadBookings();
     loadClosures();
   }, []);
+
+  useEffect(() => {
+    loadCourtSettings();
+  }, [courtId]);
+
+  async function loadCourtSettings() {
+    if (!courtId) return;
+    const { data, error } = await supabaseAdmin
+      .from("courts")
+      .select("hours_start, hours_end, status")
+      .eq("id", courtId)
+      .single();
+    if (error) {
+      console.error(error.message);
+      return;
+    }
+    if (data) {
+      setCourtHoursStart(data.hours_start.slice(0, 5));
+      setCourtHoursEnd(data.hours_end.slice(0, 5));
+      setCourtStatus(data.status);
+    }
+  }
+
+  async function saveCourtHours() {
+    setSavingCourt(true);
+    const { error } = await supabaseAdmin
+      .from("courts")
+      .update({ hours_start: courtHoursStart, hours_end: courtHoursEnd })
+      .eq("id", courtId);
+    setSavingCourt(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setCourtSaved(true);
+    setTimeout(() => setCourtSaved(false), 2000);
+  }
+
+  async function toggleMaintenance() {
+    const newStatus = courtStatus === "active" ? "maintenance" : "active";
+    const { error } = await supabaseAdmin.from("courts").update({ status: newStatus }).eq("id", courtId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setCourtStatus(newStatus);
+  }
 
   async function loadStats() {
     const today = todayStr();
@@ -1451,9 +1531,54 @@ function AdminView({ courtId }) {
         {adminTab === "settings" && (
           <div>
             <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 20 }}>Availability and closures</h2>
-            <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+
+            <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginBottom: 16, maxWidth: 360 }}>
               <p className="cf-label">Operating hours</p>
-              <p style={{ fontSize: 14, color: COLORS.onyx }}>6:00 AM – 11:00 PM daily (editable in a future update)</p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+                <input className="cf-input" type="time" value={courtHoursStart} onChange={(e) => setCourtHoursStart(e.target.value)} />
+                <span style={{ fontSize: 12, color: COLORS.muted }}>to</span>
+                <input className="cf-input" type="time" value={courtHoursEnd} onChange={(e) => setCourtHoursEnd(e.target.value)} />
+              </div>
+              <button
+                className="cf-btn"
+                onClick={saveCourtHours}
+                disabled={savingCourt}
+                style={{ height: 36, padding: "0 14px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, opacity: savingCourt ? 0.6 : 1 }}
+              >
+                {savingCourt ? "Saving..." : courtSaved ? "Saved" : "Save hours"}
+              </button>
+              <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 8 }}>Changes apply immediately to the homepage calendar.</p>
+            </div>
+
+            <div style={{ background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, marginBottom: 20, maxWidth: 360, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>Maintenance mode</p>
+                <p style={{ fontSize: 11, color: COLORS.muted, margin: 0 }}>Hides the booking calendar from customers.</p>
+              </div>
+              <button
+                className="cf-btn"
+                onClick={toggleMaintenance}
+                style={{
+                  width: 44,
+                  height: 24,
+                  borderRadius: 12,
+                  background: courtStatus === "maintenance" ? COLORS.danger : COLORS.border,
+                  position: "relative",
+                  flexShrink: 0,
+                }}
+                aria-label="Toggle maintenance mode"
+              >
+                <span style={{
+                  position: "absolute",
+                  top: 3,
+                  left: courtStatus === "maintenance" ? 23 : 3,
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.15s",
+                }} />
+              </button>
             </div>
 
             {closures.map((c) => (
