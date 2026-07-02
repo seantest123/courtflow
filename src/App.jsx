@@ -647,6 +647,7 @@ function CustomerApp() {
           selectedDate={selectedDate}
           courtId={courtId}
           daySlots={daySlots}
+          profile={profile}
           onLoginClick={() => setShowLogin(true)}
         />
       )}
@@ -1213,7 +1214,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, onLoginClick }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
 
@@ -1239,22 +1240,47 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
       });
   }, [rescheduleId, rescheduleDate, courtId]);
 
-  async function cancelBooking(id) {
-    const { error } = await supabase.from("booking_slots").update({ status: "cancelled" }).eq("id", id);
+  function notifyStatusEmail(payload) {
+    fetch("https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/send-status-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  }
+
+  async function cancelBooking(booking) {
+    const { error } = await supabase.from("booking_slots").update({ status: "cancelled" }).eq("id", booking.id);
     if (error) {
       alert(error.message);
       return;
     }
+    notifyStatusEmail({
+      email: profile.email,
+      name: profile.name,
+      type: "cancelled",
+      dateLabel: booking.dateLabel,
+      times: booking.timeLabel,
+    });
     await loadMyBookings();
     await loadAvailability(selectedDate);
   }
 
-  async function rescheduleBooking(id, newStart, newEnd) {
+  async function rescheduleBooking(id, newStart, newEnd, newLabel) {
+    const oldBooking = bookings.find((b) => b.id === id);
     const { error } = await supabase.from("booking_slots").update({ start_time: newStart, end_time: newEnd, slot_date: rescheduleDate }).eq("id", id);
     if (error) {
       alert(error.message);
       return;
     }
+    notifyStatusEmail({
+      email: profile.email,
+      name: profile.name,
+      type: "rescheduled",
+      dateLabel: oldBooking?.dateLabel,
+      times: oldBooking?.timeLabel,
+      newDateLabel: formatDateLabel(rescheduleDate),
+      newTimes: newLabel,
+    });
     await loadMyBookings();
     await loadAvailability(selectedDate);
     setRescheduleId(null);
@@ -1301,7 +1327,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button className="cf-btn" onClick={() => cancelBooking(b.id)} style={{ height: 32, padding: "0 14px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 13, color: COLORS.onyx }}>
+                    <button className="cf-btn" onClick={() => cancelBooking(b)} style={{ height: 32, padding: "0 14px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 13, color: COLORS.onyx }}>
                       Cancel
                     </button>
                     <button className="cf-btn" onClick={() => setRescheduleId(b.id)} style={{ height: 32, padding: "0 14px", borderRadius: 6, background: COLORS.pine, color: "#EFF3EC", fontSize: 13 }}>
@@ -1349,7 +1375,8 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
                     rescheduleBooking(
                       rescheduleId,
                       `${String(slot.hour).padStart(2, "0")}:00:00`,
-                      `${String(slot.hour + 1).padStart(2, "0")}:00:00`
+                      `${String(slot.hour + 1).padStart(2, "0")}:00:00`,
+                      slot.label
                     );
                   }}
                 >
@@ -1585,12 +1612,26 @@ function AdminView({ courtId }) {
     if (error) alert(error.message);
   }
 
-  async function adminCancelBooking(slotId) {
+  async function adminCancelBooking(booking) {
     if (!confirm("Cancel this booking? This does not process a refund.")) return;
-    const { error } = await supabaseAdmin.from("booking_slots").update({ status: "cancelled" }).eq("id", slotId);
+    const { error } = await supabaseAdmin.from("booking_slots").update({ status: "cancelled" }).eq("id", booking.id);
     if (error) {
       alert(error.message);
       return;
+    }
+    const email = booking.bookings?.users?.email;
+    if (email) {
+      fetch("https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/send-status-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          name: booking.bookings?.guest_name || booking.bookings?.users?.name,
+          type: "cancelled",
+          dateLabel: booking.slot_date,
+          times: `${booking.start_time.slice(0, 5)}-${booking.end_time.slice(0, 5)}`,
+        }),
+      }).catch(() => {});
     }
     loadBookings();
     loadStats();
@@ -1755,7 +1796,7 @@ function AdminView({ courtId }) {
                         {!cancelled && (
                           <button
                             className="cf-btn"
-                            onClick={() => adminCancelBooking(b.id)}
+                            onClick={() => adminCancelBooking(b)}
                             style={{ height: 28, padding: "0 10px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 12, color: COLORS.danger }}
                           >
                             Cancel
