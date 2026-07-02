@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import {
   Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
-  LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2,
+  LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users,
 } from "lucide-react";
 import { supabase, supabaseAdmin } from "./supabaseClient";
 
@@ -424,21 +424,11 @@ function CustomerApp() {
       const { data, error } = await supabase.auth.signUp({
         email: authEmail,
         password: authPassword,
-      });
-      if (error) {
-        setAuthLoading(false);
-        setAuthError(error.message);
-        return;
-      }
-      const { error: profileError } = await supabase.from("users").insert({
-        id: data.user.id,
-        name: authName,
-        email: authEmail,
-        phone: "",
+        options: { data: { name: authName } },
       });
       setAuthLoading(false);
-      if (profileError) {
-        setAuthError(profileError.message);
+      if (error) {
+        setAuthError(error.message);
         return;
       }
       setLoggedIn(true);
@@ -1384,6 +1374,9 @@ function AdminView({ courtId }) {
 
   const [stats, setStats] = useState({ today: 0, week: 0, occupancy: 0, revenue: 0 });
   const [allBookings, setAllBookings] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [savingNoteId, setSavingNoteId] = useState(null);
   const [search, setSearch] = useState("");
   const [closures, setClosures] = useState([]);
   const [newClosureOpen, setNewClosureOpen] = useState(false);
@@ -1410,6 +1403,7 @@ function AdminView({ courtId }) {
     loadStats();
     loadBookings();
     loadClosures();
+    loadCustomers();
   }, []);
 
   useEffect(() => {
@@ -1550,6 +1544,47 @@ function AdminView({ courtId }) {
     loadClosures();
   }
 
+  async function loadCustomers() {
+    const { data: usersData, error: usersErr } = await supabaseAdmin
+      .from("users")
+      .select("id, name, email, phone, notes, created_at")
+      .eq("is_admin", false)
+      .order("created_at", { ascending: false });
+
+    if (usersErr) {
+      console.error(usersErr.message);
+      return;
+    }
+
+    const { data: bookingsData, error: bookingsErr } = await supabaseAdmin
+      .from("bookings")
+      .select("user_id, total_amount")
+      .not("user_id", "is", null);
+
+    if (bookingsErr) {
+      console.error(bookingsErr.message);
+      return;
+    }
+
+    const merged = usersData.map((u) => {
+      const theirBookings = bookingsData.filter((b) => b.user_id === u.id);
+      return {
+        ...u,
+        orderCount: theirBookings.length,
+        totalSpent: theirBookings.reduce((sum, b) => sum + Number(b.total_amount), 0),
+      };
+    });
+
+    setCustomers(merged);
+  }
+
+  async function saveCustomerNote(id, notes) {
+    setSavingNoteId(id);
+    const { error } = await supabaseAdmin.from("users").update({ notes }).eq("id", id);
+    setSavingNoteId(null);
+    if (error) alert(error.message);
+  }
+
   async function adminCancelBooking(slotId) {
     if (!confirm("Cancel this booking? This does not process a refund.")) return;
     const { error } = await supabaseAdmin.from("booking_slots").update({ status: "cancelled" }).eq("id", slotId);
@@ -1614,6 +1649,7 @@ function AdminView({ courtId }) {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "bookings", label: "Bookings", icon: ListChecks },
+    { id: "customers", label: "Customers", icon: Users },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -1731,6 +1767,47 @@ function AdminView({ courtId }) {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {adminTab === "customers" && (
+          <div>
+            <h2 style={{ fontSize: 20, color: COLORS.onyx, marginBottom: 16 }}>Customers</h2>
+            <input
+              className="cf-input"
+              style={{ maxWidth: 280, marginBottom: 16 }}
+              placeholder="Search by name or email"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+            />
+            {customers
+              .filter((c) => {
+                if (!customerSearch) return true;
+                const q = customerSearch.toLowerCase();
+                return (c.name || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q);
+              })
+              .map((c) => (
+                <div key={c.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, background: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{c.name || "—"}</p>
+                      <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{c.email} {c.phone ? `· ${c.phone}` : ""}</p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 2px" }}>{c.orderCount} booking{c.orderCount !== 1 ? "s" : ""}</p>
+                      <p style={{ fontSize: 14, fontWeight: 500, color: COLORS.goldDark, margin: 0 }}>₱{c.totalSpent}</p>
+                    </div>
+                  </div>
+                  <textarea
+                    defaultValue={c.notes || ""}
+                    placeholder="Add a note about this customer..."
+                    onBlur={(e) => saveCustomerNote(c.id, e.target.value)}
+                    style={{ width: "100%", minHeight: 50, borderRadius: 8, border: `1px solid ${COLORS.border}`, padding: 8, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }}
+                  />
+                  {savingNoteId === c.id && <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 4 }}>Saving...</p>}
+                </div>
+              ))}
+            {customers.length === 0 && <p style={{ fontSize: 13, color: COLORS.muted }}>No customers yet.</p>}
           </div>
         )}
 

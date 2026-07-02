@@ -63,7 +63,35 @@ async function finalize(intentId) {
   }
 
   await supabaseAdmin.from("pending_payments").update({ status: "completed" }).eq("intent_id", intentId);
-  return { status: "completed" };
+
+  const { data: userRow } = await supabaseAdmin
+    .from("users")
+    .select("email, name")
+    .eq("id", pending.user_id)
+    .single();
+
+  if (userRow?.email) {
+    const dateLabel = new Date(`${pending.slot_date}T00:00:00`).toLocaleDateString("en-US", {
+      weekday: "long", month: "long", day: "numeric", year: "numeric",
+    });
+    const times = pending.slots
+      .map((s) => `${String(s.hour).padStart(2, "0")}:00 - ${String(s.hour + 1).padStart(2, "0")}:00`)
+      .join(", ");
+
+    fetch("https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/send-confirmation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: userRow.email,
+        name: userRow.name || "there",
+        dateLabel,
+        times,
+        total: pending.total_amount,
+      }),
+    }).catch(() => {});
+  }
+
+  return { status: "completed" }; 
 }
 
 serve(async (req) => {
