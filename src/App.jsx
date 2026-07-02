@@ -145,6 +145,7 @@ function CustomerApp() {
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [bookedHours, setBookedHours] = useState([]);
+  const [dayClosure, setDayClosure] = useState(null);
   const [myHours, setMyHours] = useState([]);
   const [selected, setSelected] = useState([]);
   const [holdSeconds, setHoldSeconds] = useState(900);
@@ -276,6 +277,18 @@ function CustomerApp() {
     });
     setBookedHours(all);
     setMyHours(mine);
+
+    const { data: closureRows, error: closureErr } = await supabase
+      .from("closures")
+      .select("reason")
+      .eq("start_date", dateStr);
+
+    if (closureErr) {
+      console.error("Could not load closures:", closureErr.message);
+      setDayClosure(null);
+    } else {
+      setDayClosure(closureRows && closureRows.length > 0 ? closureRows[0] : null);
+    }
   }
 
   useEffect(() => {
@@ -298,6 +311,8 @@ function CustomerApp() {
   }
 
   function toggleSlot(slot) {
+    if (dayClosure) return;
+    if (selectedDate < todayStr()) return;
     if (bookedHours.includes(slot.hour)) return;
     const isTodaySel = selectedDate === todayStr();
     const currentHour = new Date().getHours();
@@ -525,6 +540,7 @@ function CustomerApp() {
           toggleSlot={toggleSlot}
           basePrice={basePrice}
           handleBookNow={handleBookNow}
+          dayClosure={dayClosure}
         />
       )}
 
@@ -834,12 +850,15 @@ function CustomerApp() {
   );
 }
 
-function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHours, myHours, selected, toggleSlot, basePrice, handleBookNow }) {
+function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHours, myHours, selected, toggleSlot, basePrice, handleBookNow, dayClosure }) {
   const [showMonth, setShowMonth] = useState(false);
   const { weeks, monthLabel } = useMemo(() => getMonthMatrix(selectedDate), [selectedDate]);
   const currentHour = new Date().getHours();
+  const isPastDate = selectedDate < todayStr();
 
   function cellStatus(slot) {
+    if (dayClosure) return "unavailable";
+    if (isPastDate) return "unavailable";
     if (isToday && slot.hour <= currentHour) return "unavailable";
     if (myHours.includes(slot.hour)) return "mine";
     if (bookedHours.includes(slot.hour)) return "booked";
@@ -850,7 +869,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   return (
     <div style={{ padding: "40px 32px", maxWidth: 900, margin: "0 auto" }}>
       <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 4 }}>
-        <button className="cf-btn" onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={{ background: "none", padding: 6 }} aria-label="Previous day">
+        <button className="cf-btn" disabled={isToday} onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={{ background: "none", padding: 6, opacity: isToday ? 0.3 : 1 }} aria-label="Previous day">
           <ChevronLeft size={18} color={COLORS.onyx} />
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -872,13 +891,15 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
             </div>
             {weeks.map((week, wi) => (
               <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
-                {week.map((dateStr, di) => (
+                {week.map((dateStr, di) => {
+                  const isPast = dateStr && dateStr < todayStr();
+                  return (
                   <button
                     key={di}
                     className="cf-btn"
-                    disabled={!dateStr}
+                    disabled={!dateStr || isPast}
                     onClick={() => {
-                      if (!dateStr) return;
+                      if (!dateStr || isPast) return;
                       setSelectedDate(dateStr);
                       setShowMonth(false);
                     }}
@@ -886,22 +907,36 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
                       height: 30,
                       borderRadius: 6,
                       background: dateStr === selectedDate ? COLORS.onyx : "transparent",
-                      color: dateStr === selectedDate ? COLORS.gold : dateStr ? COLORS.text : "transparent",
+                      color: dateStr === selectedDate ? COLORS.gold : dateStr ? (isPast ? COLORS.border : COLORS.text) : "transparent",
                       fontSize: 12,
                     }}
                   >
                     {dateStr ? parseInt(dateStr.slice(-2), 10) : ""}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 20 }}>6:00 AM – 11:00 PM | ₱300/hour</p>
+      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 12 }}>6:00 AM – 11:00 PM | ₱300/hour</p>
 
-      <div style={{ overflowX: "auto", marginTop: 14, marginBottom: 14 }}>
+      {dayClosure && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.unavailable.bg, border: `1px solid ${STATUS.unavailable.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+          <Lock size={14} color={STATUS.unavailable.text} />
+          <span style={{ fontSize: 13, color: STATUS.unavailable.text }}>Closed: {dayClosure.reason}</span>
+        </div>
+      )}
+
+      {isPastDate && !dayClosure && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.comingSoon.bg, border: `1px solid ${STATUS.comingSoon.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
+          <span style={{ fontSize: 13, color: COLORS.muted }}>This date has already passed.</span>
+        </div>
+      )}
+
+      <div style={{ overflowX: "auto", marginTop: 4, marginBottom: 14 }}>
         <table style={{ width: "100%", minWidth: 675, borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: 135 }} />
