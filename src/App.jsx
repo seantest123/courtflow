@@ -1249,6 +1249,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
   }
 
   async function cancelBooking(booking) {
+    if (!confirm(`Cancel your booking on ${booking.dateLabel} · ${booking.timeLabel}? This is non-refundable and cannot be undone.`)) return;
     const { error } = await supabase.from("booking_slots").update({ status: "cancelled" }).eq("id", booking.id);
     if (error) {
       alert(error.message);
@@ -1266,6 +1267,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
   }
 
   async function rescheduleBooking(id, newStart, newEnd, newLabel) {
+    if (!confirm(`Move this booking to ${formatDateLabel(rescheduleDate)} · ${newLabel}? Your current slot will be given up.`)) return;
     const oldBooking = bookings.find((b) => b.id === id);
     const { error } = await supabase.from("booking_slots").update({ start_time: newStart, end_time: newEnd, slot_date: rescheduleDate }).eq("id", id);
     if (error) {
