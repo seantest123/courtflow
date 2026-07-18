@@ -723,9 +723,9 @@ function CustomerApp() {
       `}</style>
 
       {/* Top nav */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div className="cf-heading" style={{ fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow</div>
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
+        <div className="cf-heading" style={{ fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5, justifySelf: "start" }}>CourtFlow</div>
+        <div style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
           <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
             Home
           </button>
@@ -738,6 +738,8 @@ function CustomerApp() {
           <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("membership")} style={{ color: COLORS.muted }}>
             Membership
           </button>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           {!loggedIn ? (
             <button className="cf-btn" onClick={() => setShowLogin(true)} style={{ height: 34, padding: "0 16px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}>
               Log in
