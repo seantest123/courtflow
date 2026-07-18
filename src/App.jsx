@@ -685,17 +685,26 @@ function CustomerApp() {
         .cf-heading { font-family: var(--font-display); }
 
         /* Hero banner */
+        .cf-home-bg {
+          background: var(--brand-primary);
+        }
         .cf-hero {
           position: relative;
           overflow: hidden;
-          border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-          background: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
+          background: linear-gradient(180deg, var(--brand-primary-dark) 0%, var(--brand-primary) 100%);
           color: #fff;
           padding: 72px 32px;
           min-height: 340px;
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+        .cf-hero-court {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          opacity: 0.45;
+          pointer-events: none;
         }
         .cf-hero-inner {
           position: relative;
@@ -720,9 +729,9 @@ function CustomerApp() {
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; }
         .cf-nav-link:hover { color: ${COLORS.onyx} !important; }
 
-        /* Alternating section bands */
-        .cf-section-cream { background: ${COLORS.ivory}; }
-        .cf-section-tint { background: var(--brand-primary); background: color-mix(in srgb, var(--brand-primary) 8%, ${COLORS.ivory}); }
+        /* Legacy section bands — kept as no-ops for any other usage */
+        .cf-section-cream { background: transparent; }
+        .cf-section-tint { background: transparent; }
       `}</style>
 
       {/* Top nav */}
@@ -790,8 +799,19 @@ function CustomerApp() {
       </div>
 
       {view === "home" && (
-        <>
+        <div className="cf-home-bg">
           <div id="home-top" className="cf-hero">
+            <div className="cf-hero-court" aria-hidden="true">
+              <svg viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                <rect x="60" y="40" width="1480" height="520" fill="none" stroke="#FFFFFF" strokeWidth="5" />
+                <line x1="800" y1="40" x2="800" y2="560" stroke="#FFFFFF" strokeWidth="10" strokeDasharray="2 14" strokeLinecap="round" />
+                <line x1="580" y1="40" x2="580" y2="560" stroke="#FFFFFF" strokeWidth="4" />
+                <line x1="1020" y1="40" x2="1020" y2="560" stroke="#FFFFFF" strokeWidth="4" />
+                <line x1="60" y1="300" x2="580" y2="300" stroke="#FFFFFF" strokeWidth="3" />
+                <line x1="1020" y1="300" x2="1540" y2="300" stroke="#FFFFFF" strokeWidth="3" />
+              </svg>
+            </div>
+
             <div className="cf-hero-scene" aria-hidden="true">
               <svg className="cf-paddle cf-paddle-left" viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
                 <defs>
@@ -848,12 +868,12 @@ function CustomerApp() {
             </div>
           </div>
 
-          <section id="membership" className="cf-section-cream" style={{ padding: "56px 32px" }}>
+          <section id="membership" style={{ padding: "56px 32px" }}>
             <div style={{ maxWidth: 480, margin: "0 auto" }}>
-              <h2 className="cf-heading" style={{ fontSize: 30, color: COLORS.onyx, textAlign: "center", marginBottom: 8 }}>
+              <h2 className="cf-heading" style={{ fontSize: 30, color: "#fff", textAlign: "center", marginBottom: 8, textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}>
                 Be part of the community
               </h2>
-              <p style={{ fontSize: 13, color: COLORS.muted, textAlign: "center", marginBottom: 28 }}>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", textAlign: "center", marginBottom: 28 }}>
                 Create your account to book faster, track your bookings, and manage your balance.
               </p>
 
@@ -922,13 +942,13 @@ function CustomerApp() {
             />
           </section>
 
-          <section id="blog" className="cf-section-tint" style={{ padding: "56px 32px" }}>
+          <section id="blog" style={{ padding: "56px 32px" }}>
             <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
-              <h2 className="cf-heading" style={{ fontSize: 26, color: COLORS.onyx, marginBottom: 8 }}>Blog</h2>
-              <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
+              <h2 className="cf-heading" style={{ fontSize: 26, color: "#fff", marginBottom: 8, textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}>Blog</h2>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>Court tips, community stories, and updates — coming soon.</p>
             </div>
           </section>
-        </>
+        </div>
       )}
 
       {view === "account" && (
@@ -1346,9 +1366,9 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   if (courtSettings?.status === "maintenance") {
     return (
       <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
-        <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Court under maintenance</h1>
-        <p style={{ fontSize: 14, color: COLORS.muted }}>
+        <Settings size={32} color="rgba(255,255,255,0.85)" style={{ marginBottom: 16 }} />
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: "#fff", marginBottom: 8 }}>Court under maintenance</h1>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.85)" }}>
           We're temporarily closed for maintenance. Please check back soon — bookings will reopen once work is complete.
         </p>
       </div>
@@ -1412,7 +1432,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         )}
       </div>
 
-      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 12 }}>{formatHourLabel(startHour)} – {formatHourLabel(endHour)} | ₱300/hour</p>
+      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", marginBottom: 12 }}>{formatHourLabel(startHour)} – {formatHourLabel(endHour)} | ₱300/hour</p>
 
       {dayClosure && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.unavailable.bg, border: `1px solid ${STATUS.unavailable.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
@@ -1502,7 +1522,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         {["available", "selected", "mine", "booked", "unavailable"].map((key) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 14, height: 14, borderRadius: 999, background: STATUS[key].bg, border: key === "available" ? `1px solid ${STATUS[key].border}` : "none", display: "inline-block" }} />
-            <span style={{ color: COLORS.muted }}>{STATUS[key].label}</span>
+            <span style={{ color: "rgba(255,255,255,0.85)" }}>{STATUS[key].label}</span>
           </div>
         ))}
       </div>
@@ -1520,7 +1540,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
           Book now
         </button>
       </div>
-      <p style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic", marginTop: 8 }}>
+      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", fontStyle: "italic", marginTop: 8 }}>
         Prices may vary — this isn't the final amount, it may change based on your payment method.
       </p>
     </div>
