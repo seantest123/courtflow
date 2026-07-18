@@ -6,16 +6,19 @@ import {
 } from "lucide-react";
 import { supabase, supabaseAdmin } from "./supabaseClient";
 
+// Brand + status colors now live as CSS custom properties in index.css
+// (:root) so the palette can be themed from one place. Keys/shape unchanged
+// so nothing that reads COLORS.xxx / STATUS.xxx elsewhere needs to change.
 const COLORS = {
-  onyx: "#12100D",
-  ivory: "#FBF8F1",
-  card: "#FFFFFF",
-  border: "#E1DACB",
-  muted: "#8A8578",
-  text: "#3A362E",
-  gold: "#B8924A",
-  goldDark: "#93551C",
-  pine: "#3F5643",
+  onyx: "var(--brand-ink)",
+  ivory: "var(--brand-cream)",
+  card: "var(--brand-surface)",
+  border: "var(--brand-border)",
+  muted: "var(--brand-muted)",
+  text: "var(--brand-text)",
+  gold: "var(--brand-secondary)",
+  goldDark: "var(--brand-secondary-dark)",
+  pine: "var(--brand-primary)",
   pineLight: "#E4F1E8",
   success: "#1E7A4F",
   successBg: "#E4F1E8",
@@ -26,14 +29,15 @@ const COLORS = {
 };
 
 // Legend / status colors — distinct from brand accent colors above,
-// since these encode booking status, not brand identity.
+// since these encode booking status, not brand identity. Now solid fills
+// with white text so slot pills read clearly at a glance.
 const STATUS = {
-  available: { bg: "#FFFFFF", border: COLORS.border, text: COLORS.text, label: "Available" },
-  selected: { bg: "#EAF1FD", border: "#2F6FED", text: "#1E4FB8", label: "Selected" },
-  mine: { bg: "#E3F6FB", border: "#1C8FB0", text: "#136F87", label: "Your booking" },
-  booked: { bg: "#EFEDE5", border: "#D3D1C7", text: COLORS.muted, label: "Booked" },
-  unavailable: { bg: "#FBE9E7", border: "#C0392B", text: "#9A2E22", label: "Unavailable" },
-  comingSoon: { bg: "#F5F3EC", border: "#E1DACB", text: "#B4B2A9", label: "Coming soon" },
+  available: { bg: "var(--status-available)", border: "var(--status-available-border)", text: "var(--status-available-text)", label: "Available" },
+  selected: { bg: "var(--status-selected)", border: "var(--status-selected)", text: "var(--status-selected-text)", label: "Selected" },
+  mine: { bg: "var(--status-mine)", border: "var(--status-mine)", text: "var(--status-mine-text)", label: "Your booking" },
+  booked: { bg: "var(--status-booked)", border: "var(--status-booked)", text: "var(--status-booked-text)", label: "Booked" },
+  unavailable: { bg: "var(--status-unavailable)", border: "var(--status-unavailable)", text: "var(--status-unavailable-text)", label: "Unavailable" },
+  comingSoon: { bg: "var(--status-coming-soon)", border: "var(--status-coming-soon)", text: "var(--status-coming-soon-text)", label: "Coming soon" },
 };
 
 const COURTS = [
@@ -595,23 +599,63 @@ function CustomerApp() {
   return (
     <div style={{ fontFamily: "'Stack Sans Text', 'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", color: COLORS.text }}>
       <style>{`
-        .cf-btn { cursor: pointer; border: none; font-family: inherit; transition: opacity 0.15s, transform 0.1s; }
-        .cf-btn:active { transform: scale(0.98); }
+        .cf-btn { cursor: pointer; border: none; font-family: inherit; transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s, background-color 0.15s; }
+        .cf-btn:active:not(:disabled) { transform: scale(0.97); }
         .cf-btn:disabled { cursor: not-allowed; }
-        .cf-input { width: 100%; height: 40px; border-radius: 8px; border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; }
-        .cf-input:focus { outline: 2px solid ${COLORS.gold}; outline-offset: 1px; }
+        .cf-input { width: 100%; height: 40px; border-radius: var(--radius-sm); border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
+        .cf-input:focus { outline: none; border-color: ${COLORS.gold}; box-shadow: 0 0 0 3px rgba(184,146,74,0.18); }
         .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
-        .cf-tab { padding: 10px 4px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; }
+        .cf-tab { padding: 10px 4px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; transition: color 0.15s, border-color 0.15s; }
         .cf-tab.active { border-bottom-color: ${COLORS.onyx}; font-weight: 500; color: ${COLORS.onyx}; }
         .cf-tab:not(.active) { color: ${COLORS.muted}; }
-        .cf-slot-row { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:10px; border:1px solid ${COLORS.border}; margin-bottom:8px; cursor:pointer; background:#fff; }
-        .cf-cell-hover { opacity: 0; transition: opacity 0.1s; }
+        .cf-tab:not(.active):hover { color: ${COLORS.onyx}; }
+        .cf-slot-row { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:var(--radius-sm); border:1px solid ${COLORS.border}; margin-bottom:8px; cursor:pointer; background:#fff; transition: box-shadow 0.15s, transform 0.15s; }
+        .cf-slot-row:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        .cf-cell-hover { opacity: 0; transition: opacity 0.15s; }
         .cf-cell:hover .cf-cell-hover { opacity: 1; }
+
+        /* Cards: consistent radius, shadow, and a subtle lift on hover */
+        .cf-card { border-radius: var(--radius-md); box-shadow: var(--shadow-sm); transition: box-shadow 0.2s ease, transform 0.2s ease; }
+        .cf-card--hoverable:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+        /* Booking slot pills */
+        .cf-slot-pill { border-radius: 999px !important; transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
+        .cf-slot-pill:hover:not(:disabled) { transform: scale(1.04); box-shadow: var(--shadow-sm); filter: brightness(1.03); }
+        .cf-slot-pill:active:not(:disabled) { transform: scale(0.96); }
+
+        .cf-heading { font-family: var(--font-display); }
+
+        /* Hero banner */
+        .cf-hero {
+          position: relative;
+          overflow: hidden;
+          border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+          background:
+            radial-gradient(circle at 15% 20%, rgba(184,146,74,0.35), transparent 45%),
+            radial-gradient(circle at 85% 15%, rgba(255,255,255,0.12), transparent 40%),
+            linear-gradient(135deg, ${COLORS.pine} 0%, var(--brand-primary-dark) 100%);
+          color: #fff;
+          padding: 56px 32px 40px;
+        }
+        .cf-hero::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 2px, transparent 2px 40px);
+          pointer-events: none;
+        }
+        .cf-hero-inner { position: relative; max-width: 900px; margin: 0 auto; }
+        .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; }
+        .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.82); margin-top: 8px; max-width: 480px; }
+
+        /* Alternating section bands */
+        .cf-section-cream { background: ${COLORS.ivory}; }
+        .cf-section-tint { background: var(--brand-primary); background: color-mix(in srgb, var(--brand-primary) 8%, ${COLORS.ivory}); }
       `}</style>
 
       {/* Top nav */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow</div>
+        <div className="cf-heading" style={{ fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow</div>
         <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
           <button className="cf-btn" onClick={() => setView("home")} style={{ background: "none", fontSize: 13, color: view === "home" ? COLORS.onyx : COLORS.muted, fontWeight: view === "home" ? 500 : 400 }}>
             Home
@@ -633,7 +677,7 @@ function CustomerApp() {
                 Hello, {(profile.name || "there").split(" ")[0]}
               </button>
               {accountMenuOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 20, minWidth: 160 }}>
+                <div className="cf-card" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, zIndex: 20, minWidth: 160 }}>
                   <button
                     className="cf-btn"
                     onClick={async () => {
@@ -1011,7 +1055,7 @@ function CustomerApp() {
             >
               <X size={18} color={COLORS.muted} />
             </button>
-            <h3 style={{ fontFamily: "Georgia, serif", fontSize: 18, color: COLORS.onyx, marginBottom: 16 }}>Terms and conditions</h3>
+            <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, color: COLORS.onyx, marginBottom: 16 }}>Terms and conditions</h3>
 
             <div style={{ fontSize: 13, color: COLORS.text, lineHeight: 1.6 }}>
               <p style={{ fontWeight: 500, marginBottom: 4 }}>1. Booking and payment</p>
@@ -1090,7 +1134,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
     return (
       <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
         <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
-        <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Court under maintenance</h1>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Court under maintenance</h1>
         <p style={{ fontSize: 14, color: COLORS.muted }}>
           We're temporarily closed for maintenance. Please check back soon — bookings will reopen once work is complete.
         </p>
@@ -1099,8 +1143,17 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   }
 
   return (
-    <div style={{ padding: "40px 32px", maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 4 }}>
+    <div>
+      <div className="cf-hero">
+        <div className="cf-hero-inner">
+          <div className="cf-hero-logo">CourtFlow</div>
+          <p className="cf-hero-tag">Book your court in seconds — pick a date, choose your slot, and you're on.</p>
+        </div>
+      </div>
+
+    <div className="cf-section-cream" style={{ padding: "40px 32px 8px" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div className="cf-card" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: `1px solid ${COLORS.border}`, padding: "10px 14px", marginBottom: 4 }}>
         <button className="cf-btn" disabled={isToday} onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={{ background: "none", padding: 6, opacity: isToday ? 0.3 : 1 }} aria-label="Previous day">
           <ChevronLeft size={18} color={COLORS.onyx} />
         </button>
@@ -1109,7 +1162,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
             <Calendar size={16} color={COLORS.muted} />
           </button>
           <span style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx }}>{formatDateLabel(selectedDate)}</span>
-          {isToday && <span style={{ background: COLORS.pineLight, color: COLORS.pine, fontSize: 11, padding: "2px 8px", borderRadius: 6 }}>Today</span>}
+          {isToday && <span style={{ background: COLORS.pineLight, color: COLORS.pine, fontSize: 11, padding: "2px 10px", borderRadius: 999 }}>Today</span>}
         </div>
         <button className="cf-btn" onClick={() => setSelectedDate(addDays(selectedDate, 1))} style={{ background: "none", padding: 6 }} aria-label="Next day">
           <ChevronRight size={18} color={COLORS.onyx} />
@@ -1170,7 +1223,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         </div>
       )}
 
-      <div style={{ overflowX: "auto", marginTop: 4, marginBottom: 14 }}>
+      <div className="cf-card" style={{ overflowX: "auto", marginTop: 4, marginBottom: 20, background: "#fff", border: `1px solid ${COLORS.border}`, padding: "8px 4px" }}>
         <table style={{ width: "100%", minWidth: 675, borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: 135 }} />
@@ -1203,10 +1256,10 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
                       <td style={{ padding: "2px 8px", fontSize: 10, fontWeight: 500, color: COLORS.text, whiteSpace: "nowrap" }}>{slot.label}</td>
                       <td style={{ padding: "2px 3px" }}>
                         <button
-                          className="cf-btn cf-cell"
+                          className="cf-btn cf-cell cf-slot-pill"
                           disabled={status === "booked" || status === "unavailable" || status === "mine"}
                           onClick={() => toggleSlot(slot)}
-                          style={{ width: "100%", height: 26, borderRadius: 5, border: `1px solid ${s.border}`, background: s.bg, color: s.text, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
+                          style={{ width: "100%", height: 26, border: status === "available" ? `1px solid ${s.border}` : "none", background: s.bg, color: s.text, fontSize: 10, fontWeight: status === "available" ? 400 : 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
                         >
                           {status === "available" && <span className="cf-cell-hover">Select</span>}
                           {status === "selected" && (
@@ -1220,7 +1273,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
                       </td>
                       {COURTS.slice(1).map((c) => (
                         <td key={c.id} style={{ padding: "2px 3px" }}>
-                          <div style={{ height: 26, borderRadius: 5, border: `1px solid ${STATUS.comingSoon.border}`, background: STATUS.comingSoon.bg, color: STATUS.comingSoon.text, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <div style={{ height: 26, borderRadius: 999, border: `1px dashed ${STATUS.comingSoon.border}`, background: STATUS.comingSoon.bg, color: STATUS.comingSoon.text, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
                             Coming soon
                           </div>
                         </td>
@@ -1234,16 +1287,21 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         </table>
       </div>
 
+    </div>
+    </div>
+
+    <div className="cf-section-tint" style={{ padding: "24px 32px 40px" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24, fontSize: 12 }}>
         {["available", "selected", "mine", "booked", "unavailable"].map((key) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 12, height: 12, borderRadius: 3, background: STATUS[key].bg, border: `1px solid ${STATUS[key].border}`, display: "inline-block" }} />
+            <span style={{ width: 14, height: 14, borderRadius: 999, background: STATUS[key].bg, border: key === "available" ? `1px solid ${STATUS[key].border}` : "none", display: "inline-block" }} />
             <span style={{ color: COLORS.muted }}>{STATUS[key].label}</span>
           </div>
         ))}
       </div>
 
-      <div style={{ position: "sticky", bottom: 16, background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="cf-card" style={{ position: "sticky", bottom: 16, background: "#fff", border: `1px solid ${COLORS.border}`, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 12, color: COLORS.muted }}>
           {selected.length} slot{selected.length !== 1 ? "s" : ""} · {selected.length}/3 hrs · ₱{basePrice}
         </div>
@@ -1251,7 +1309,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
           className="cf-btn"
           disabled={selected.length === 0}
           onClick={handleBookNow}
-          style={{ height: 40, padding: "0 18px", borderRadius: 8, background: selected.length ? COLORS.onyx : COLORS.border, color: selected.length ? COLORS.gold : COLORS.muted, fontSize: 13, fontWeight: 500 }}
+          style={{ height: 40, padding: "0 18px", borderRadius: 999, background: selected.length ? COLORS.onyx : COLORS.border, color: selected.length ? COLORS.gold : COLORS.muted, fontSize: 13, fontWeight: 500 }}
         >
           Book now
         </button>
@@ -1259,6 +1317,8 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
       <p style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic", marginTop: 8 }}>
         Prices may vary — this isn't the final amount, it may change based on your payment method.
       </p>
+    </div>
+    </div>
     </div>
   );
 }
@@ -1385,7 +1445,7 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
 
   return (
     <div style={{ padding: "40px 32px", maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "Georgia, serif", fontSize: 28, color: COLORS.onyx, marginBottom: 20 }}>My account</h1>
+      <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, color: COLORS.onyx, marginBottom: 20 }}>My account</h1>
 
       <h3 style={{ fontSize: 18, color: COLORS.onyx, marginBottom: 16 }}>My bookings</h3>
       <div style={{ display: "flex", gap: 20, borderBottom: `1px solid ${COLORS.border}`, marginBottom: 16 }}>
@@ -2159,7 +2219,7 @@ function AdminApp() {
     return (
       <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.onyx, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 360, background: COLORS.ivory, borderRadius: 16, padding: 28 }}>
-          <p style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, marginBottom: 4 }}>CourtFlow admin</p>
+          <p style={{ fontFamily: "var(--font-display)", fontSize: 20, color: COLORS.onyx, marginBottom: 4 }}>CourtFlow admin</p>
           <p style={{ fontSize: 12, color: COLORS.muted, marginBottom: 20 }}>Staff access only.</p>
           <form onSubmit={handleAdminLogin}>
             {error && (
@@ -2198,7 +2258,7 @@ function AdminApp() {
         .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
       `}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow admin</div>
+        <div style={{ fontFamily: "var(--font-display)", fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow admin</div>
         <button className="cf-btn" onClick={handleAdminLogout} style={{ background: "none", fontSize: 13, color: COLORS.muted }}>
           Log out
         </button>
@@ -2324,7 +2384,7 @@ function ResetPassword() {
         .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
       `}</style>
       <div style={{ width: 360, background: "#fff", borderRadius: 16, padding: 28 }}>
-        <p style={{ fontFamily: "Georgia, serif", fontSize: 20, color: COLORS.onyx, marginBottom: 16 }}>Reset your password</p>
+        <p style={{ fontFamily: "var(--font-display)", fontSize: 20, color: COLORS.onyx, marginBottom: 16 }}>Reset your password</p>
         {done ? (
           <>
             <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>Your password has been updated.</p>

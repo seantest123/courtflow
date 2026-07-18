@@ -1,5 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  /* Brand palette */
+  --brand-primary: #3F5643;      /* pine green */
+  --brand-primary-dark: #2C3F2F;
+  --brand-secondary: #B8924A;    /* gold */
+  --brand-secondary-dark: #93551C;
+  --brand-ink: #12100D;          /* onyx */
+  --brand-cream: #FBF8F1;        /* ivory */
+  --brand-surface: #FFFFFF;
+  --brand-border: #E1DACB;
+  --brand-muted: #8A8578;
+  --brand-text: #3A362E;
+
+  /* Status colors — solid fills, paired with white text */
+  --status-available: #FFFFFF;
+  --status-available-text: #3A362E;
+  --status-available-border: #E1DACB;
+  --status-selected: #2F6FED;
+  --status-selected-text: #FFFFFF;
+  --status-mine: #1C8FB0;
+  --status-mine-text: #FFFFFF;
+  --status-booked: #A79E88;
+  --status-booked-text: #FFFFFF;
+  --status-unavailable: #A5382E;
+  --status-unavailable-text: #FFFFFF;
+  --status-coming-soon: #E1DACB;
+  --status-coming-soon-text: #B4B2A9;
+
+  /* Fonts */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  /* Shadows & radii */
+  --shadow-sm: 0 2px 8px rgba(18, 16, 13, 0.06);
+  --shadow-md: 0 8px 24px rgba(18, 16, 13, 0.10);
+  --shadow-lg: 0 16px 40px rgba(18, 16, 13, 0.14);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+}
+
 * {
      margin: 0;
      padding: 0;
      box-sizing: border-box;
    }
+
+body {
+  font-family: var(--font-body);
+}
