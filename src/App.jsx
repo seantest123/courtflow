@@ -19,7 +19,7 @@ const COLORS = {
   gold: "var(--brand-secondary)",
   goldDark: "var(--brand-secondary-dark)",
   pine: "var(--brand-primary)",
-  pineLight: "#E4F1E8",
+  pineLight: "#E9F4FB",
   success: "#1E7A4F",
   successBg: "#E4F1E8",
   danger: "#A5382E",
@@ -159,6 +159,16 @@ function CustomerApp() {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotError, setForgotError] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+
+  const [memberFirstName, setMemberFirstName] = useState("");
+  const [memberLastName, setMemberLastName] = useState("");
+  const [memberPreferredName, setMemberPreferredName] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberPassword, setMemberPassword] = useState("");
+  const [memberConfirmPassword, setMemberConfirmPassword] = useState("");
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberError, setMemberError] = useState("");
+  const [memberSuccess, setMemberSuccess] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [bookedHours, setBookedHours] = useState([]);
@@ -454,6 +464,55 @@ function CustomerApp() {
 
   const PAYMONGO_TYPE = { qrph: "qrph", gcash: "gcash", maya: "paymaya" };
 
+  function scrollToSection(id) {
+    setView("home");
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
+  async function handleMembershipSubmit(e) {
+    e.preventDefault();
+    setMemberError("");
+
+    if (memberPassword !== memberConfirmPassword) {
+      setMemberError("Passwords do not match.");
+      return;
+    }
+    if (memberPassword.length < 6) {
+      setMemberError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setMemberLoading(true);
+    const fullName = `${memberFirstName} ${memberLastName}`.trim();
+    const { data, error } = await supabase.auth.signUp({
+      email: memberEmail,
+      password: memberPassword,
+      options: {
+        data: {
+          name: fullName,
+          first_name: memberFirstName,
+          last_name: memberLastName,
+          preferred_name: memberPreferredName,
+        },
+      },
+    });
+    setMemberLoading(false);
+    if (error) {
+      setMemberError(error.message);
+      return;
+    }
+
+    setLoggedIn(true);
+    setCurrentUserId(data.user.id);
+    setProfile({ name: memberPreferredName || fullName, email: memberEmail, phone: "" });
+    setName(fullName);
+    setEmail(memberEmail);
+    setPhone("");
+    setMemberSuccess(true);
+  }
+
   async function callFinalize(intentId) {
     const res = await fetch(
       "https://uxmhsigqahdsgianqlof.supabase.co/functions/v1/finalize-booking",
@@ -603,7 +662,7 @@ function CustomerApp() {
         .cf-btn:active:not(:disabled) { transform: scale(0.97); }
         .cf-btn:disabled { cursor: not-allowed; }
         .cf-input { width: 100%; height: 40px; border-radius: var(--radius-sm); border: 1px solid ${COLORS.border}; padding: 0 12px; font-size: 14px; box-sizing: border-box; background: #fff; font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
-        .cf-input:focus { outline: none; border-color: ${COLORS.gold}; box-shadow: 0 0 0 3px rgba(184,146,74,0.18); }
+        .cf-input:focus { outline: none; border-color: ${COLORS.gold}; box-shadow: 0 0 0 3px rgba(255,107,74,0.18); }
         .cf-label { font-size: 12px; color: ${COLORS.muted}; display: block; margin-bottom: 4px; }
         .cf-tab { padding: 10px 4px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; transition: color 0.15s, border-color 0.15s; }
         .cf-tab.active { border-bottom-color: ${COLORS.onyx}; font-weight: 500; color: ${COLORS.onyx}; }
@@ -631,7 +690,7 @@ function CustomerApp() {
           overflow: hidden;
           border-radius: 0 0 var(--radius-lg) var(--radius-lg);
           background:
-            radial-gradient(circle at 15% 20%, rgba(184,146,74,0.35), transparent 45%),
+            radial-gradient(circle at 15% 20%, rgba(255,107,74,0.35), transparent 45%),
             radial-gradient(circle at 85% 15%, rgba(255,255,255,0.12), transparent 40%),
             linear-gradient(135deg, ${COLORS.pine} 0%, var(--brand-primary-dark) 100%);
           color: #fff;
@@ -647,6 +706,16 @@ function CustomerApp() {
         .cf-hero-inner { position: relative; max-width: 900px; margin: 0 auto; }
         .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; }
         .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.82); margin-top: 8px; max-width: 480px; }
+        .cf-cta-pill {
+          display: inline-flex; align-items: center; gap: 8px;
+          margin-top: 24px; height: 46px; padding: 0 24px;
+          border-radius: 999px; border: none;
+          background: ${COLORS.gold}; color: #fff; font-size: 14px; font-weight: 600;
+          box-shadow: var(--shadow-md);
+        }
+        .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); box-shadow: var(--shadow-lg); filter: brightness(1.05); }
+        .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; }
+        .cf-nav-link:hover { color: ${COLORS.onyx} !important; }
 
         /* Alternating section bands */
         .cf-section-cream { background: ${COLORS.ivory}; }
@@ -657,11 +726,17 @@ function CustomerApp() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
         <div className="cf-heading" style={{ fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5 }}>CourtFlow</div>
         <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-          <button className="cf-btn" onClick={() => setView("home")} style={{ background: "none", fontSize: 13, color: view === "home" ? COLORS.onyx : COLORS.muted, fontWeight: view === "home" ? 500 : 400 }}>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
             Home
           </button>
-          <button className="cf-btn" onClick={() => setView("account")} style={{ background: "none", fontSize: 13, color: view === "account" ? COLORS.onyx : COLORS.muted, fontWeight: view === "account" ? 500 : 400 }}>
-            Account
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("booking")} style={{ color: COLORS.muted }}>
+            Court booking
+          </button>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("blog")} style={{ color: COLORS.muted }}>
+            Blog
+          </button>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("membership")} style={{ color: COLORS.muted }}>
+            Membership
           </button>
           {!loggedIn ? (
             <button className="cf-btn" onClick={() => setShowLogin(true)} style={{ height: 34, padding: "0 16px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}>
@@ -680,12 +755,22 @@ function CustomerApp() {
                 <div className="cf-card" style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, background: "#fff", border: `1px solid ${COLORS.border}`, zIndex: 20, minWidth: 160 }}>
                   <button
                     className="cf-btn"
+                    onClick={() => {
+                      setView("account");
+                      setAccountMenuOpen(false);
+                    }}
+                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx, borderRadius: "8px 8px 0 0" }}
+                  >
+                    My account
+                  </button>
+                  <button
+                    className="cf-btn"
                     onClick={async () => {
                       await supabase.auth.signOut();
                       setAccountMenuOpen(false);
                       setView("home");
                     }}
-                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx, borderRadius: "8px 8px 0 0" }}
+                    style={{ width: "100%", textAlign: "left", padding: "10px 14px", background: "none", fontSize: 13, color: COLORS.onyx }}
                   >
                     Log out
                   </button>
@@ -700,22 +785,98 @@ function CustomerApp() {
       </div>
 
       {view === "home" && (
-        <HomeView
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          isToday={isToday}
-          bySection={bySection}
-          bookedHours={bookedHours}
-          myHours={myHours}
-          selected={selected}
-          toggleSlot={toggleSlot}
-          basePrice={basePrice}
-          handleBookNow={handleBookNow}
-          dayClosure={dayClosure}
-          courtSettings={courtSettings}
-          startHour={startHour}
-          endHour={endHour}
-        />
+        <>
+          <div id="home-top" className="cf-hero">
+            <div className="cf-hero-inner">
+              <div className="cf-hero-logo">CourtFlow</div>
+              <p className="cf-hero-tag">Book your court in seconds — pick a date, choose your slot, and you're on.</p>
+              <button className="cf-btn cf-cta-pill" onClick={() => scrollToSection("membership")}>
+                Join CourtFlow Community
+              </button>
+            </div>
+          </div>
+
+          <section id="membership" className="cf-section-cream" style={{ padding: "56px 32px" }}>
+            <div style={{ maxWidth: 480, margin: "0 auto" }}>
+              <h2 className="cf-heading" style={{ fontSize: 30, color: COLORS.onyx, textAlign: "center", marginBottom: 8 }}>
+                Be part of the community
+              </h2>
+              <p style={{ fontSize: 13, color: COLORS.muted, textAlign: "center", marginBottom: 28 }}>
+                Create your account to book faster, track your bookings, and manage your balance.
+              </p>
+
+              {memberSuccess ? (
+                <div className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24, textAlign: "center" }}>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx, marginBottom: 6 }}>Welcome to CourtFlow!</p>
+                  <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>Your account has been created.</p>
+                  <button className="cf-btn" onClick={() => scrollToSection("booking")} style={{ height: 40, padding: "0 18px", borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, fontWeight: 500 }}>
+                    Start booking
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleMembershipSubmit} className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24 }}>
+                  {memberError && (
+                    <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
+                      {memberError}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="cf-label">First name</label>
+                      <input className="cf-input" required value={memberFirstName} onChange={(e) => setMemberFirstName(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="cf-label">Last name</label>
+                      <input className="cf-input" required value={memberLastName} onChange={(e) => setMemberLastName(e.target.value)} />
+                    </div>
+                  </div>
+                  <label className="cf-label">Preferred name</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} placeholder="What should we call you?" value={memberPreferredName} onChange={(e) => setMemberPreferredName(e.target.value)} />
+                  <label className="cf-label">Email address</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} type="email" required placeholder="name@email.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} />
+                  <label className="cf-label">Password</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} type="password" required value={memberPassword} onChange={(e) => setMemberPassword(e.target.value)} />
+                  <label className="cf-label">Confirm password</label>
+                  <input className="cf-input" style={{ marginBottom: 20 }} type="password" required value={memberConfirmPassword} onChange={(e) => setMemberConfirmPassword(e.target.value)} />
+                  <button
+                    type="submit"
+                    className="cf-btn"
+                    disabled={memberLoading}
+                    style={{ width: "100%", height: 44, borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 600, opacity: memberLoading ? 0.6 : 1 }}
+                  >
+                    {memberLoading ? "Please wait..." : "Register now"}
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
+
+          <section id="booking">
+            <HomeView
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              isToday={isToday}
+              bySection={bySection}
+              bookedHours={bookedHours}
+              myHours={myHours}
+              selected={selected}
+              toggleSlot={toggleSlot}
+              basePrice={basePrice}
+              handleBookNow={handleBookNow}
+              dayClosure={dayClosure}
+              courtSettings={courtSettings}
+              startHour={startHour}
+              endHour={endHour}
+            />
+          </section>
+
+          <section id="blog" className="cf-section-tint" style={{ padding: "56px 32px" }}>
+            <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+              <h2 className="cf-heading" style={{ fontSize: 26, color: COLORS.onyx, marginBottom: 8 }}>Blog</h2>
+              <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
+            </div>
+          </section>
+        </>
       )}
 
       {view === "account" && (
@@ -1144,13 +1305,6 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
 
   return (
     <div>
-      <div className="cf-hero">
-        <div className="cf-hero-inner">
-          <div className="cf-hero-logo">CourtFlow</div>
-          <p className="cf-hero-tag">Book your court in seconds — pick a date, choose your slot, and you're on.</p>
-        </div>
-      </div>
-
     <div className="cf-section-cream" style={{ padding: "40px 32px 8px" }}>
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <div className="cf-card" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", border: `1px solid ${COLORS.border}`, padding: "10px 14px", marginBottom: 4 }}>

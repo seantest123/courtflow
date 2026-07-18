@@ -1,17 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
 
 :root {
-  /* Brand palette */
-  --brand-primary: #3F5643;      /* pine green */
-  --brand-primary-dark: #2C3F2F;
-  --brand-secondary: #B8924A;    /* gold */
-  --brand-secondary-dark: #93551C;
+  /* Brand palette: sky blue + coral */
+  --brand-primary: #4FA8D8;      /* sky blue */
+  --brand-primary-dark: #2E7EB0;
+  --brand-secondary: #FF6B4A;    /* coral */
+  --brand-secondary-dark: #E85336;
   --brand-ink: #12100D;          /* onyx */
-  --brand-cream: #FBF8F1;        /* ivory */
+  --brand-cream: #F7FAFC;        /* soft off-white */
   --brand-surface: #FFFFFF;
-  --brand-border: #E1DACB;
-  --brand-muted: #8A8578;
-  --brand-text: #3A362E;
+  --brand-border: #DCE7EE;
+  --brand-muted: #6E8494;
+  --brand-text: #2B3540;
 
   /* Status colors — solid fills, paired with white text */
   --status-available: #FFFFFF;
