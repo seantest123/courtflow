@@ -689,23 +689,26 @@ function CustomerApp() {
           position: relative;
           overflow: hidden;
           border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-          background:
-            radial-gradient(circle at 15% 20%, rgba(255,107,74,0.35), transparent 45%),
-            radial-gradient(circle at 85% 15%, rgba(255,255,255,0.12), transparent 40%),
-            linear-gradient(135deg, ${COLORS.pine} 0%, var(--brand-primary-dark) 100%);
+          background: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-primary-dark) 100%);
           color: #fff;
-          padding: 56px 32px 40px;
+          padding: 72px 32px;
+          min-height: 340px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
-        .cf-hero::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 2px, transparent 2px 40px);
-          pointer-events: none;
+        .cf-hero-inner {
+          position: relative;
+          z-index: 2;
+          max-width: 620px;
+          margin: 0 auto;
+          text-align: center;
+          padding: 20px 28px 28px;
+          border-radius: var(--radius-lg);
+          background: radial-gradient(ellipse at center, rgba(18,16,13,0.38) 0%, rgba(18,16,13,0.18) 55%, transparent 80%);
         }
-        .cf-hero-inner { position: relative; max-width: 900px; margin: 0 auto; }
-        .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; }
-        .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.82); margin-top: 8px; max-width: 480px; }
+        .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+        .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.92); margin-top: 8px; max-width: 480px; text-shadow: 0 1px 6px rgba(0,0,0,0.35); }
         .cf-cta-pill {
           display: inline-flex; align-items: center; gap: 8px;
           margin-top: 24px; height: 46px; padding: 0 24px;
@@ -789,6 +792,53 @@ function CustomerApp() {
       {view === "home" && (
         <>
           <div id="home-top" className="cf-hero">
+            <div className="cf-hero-scene" aria-hidden="true">
+              <svg className="cf-paddle cf-paddle-left" viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <clipPath id="paddleFaceClip">
+                    <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+                  </clipPath>
+                </defs>
+                <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+                <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
+                <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
+                <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+                <g clipPath="url(#paddleFaceClip)">
+                  <rect x="70" y="10" width="180" height="140" fill="var(--brand-primary)" />
+                  <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-secondary)" />
+                </g>
+                <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+              </svg>
+
+              <svg className="cf-paddle cf-paddle-right" viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <clipPath id="paddleFaceClipR">
+                    <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+                  </clipPath>
+                </defs>
+                <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+                <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
+                <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
+                <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+                <g clipPath="url(#paddleFaceClipR)">
+                  <rect x="70" y="10" width="180" height="140" fill="var(--brand-secondary)" />
+                  <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-primary)" />
+                </g>
+                <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+              </svg>
+
+              <svg className="cf-ball" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="20" cy="20" r="18" fill="#D6E64A" stroke="#A8BB2E" strokeWidth="1.5" />
+                <circle cx="14" cy="12" r="1.8" fill="#A8BB2E" />
+                <circle cx="24" cy="10" r="1.8" fill="#A8BB2E" />
+                <circle cx="30" cy="18" r="1.8" fill="#A8BB2E" />
+                <circle cx="10" cy="22" r="1.8" fill="#A8BB2E" />
+                <circle cx="18" cy="28" r="1.8" fill="#A8BB2E" />
+                <circle cx="28" cy="28" r="1.8" fill="#A8BB2E" />
+                <circle cx="20" cy="20" r="1.8" fill="#A8BB2E" />
+              </svg>
+            </div>
+
             <div className="cf-hero-inner">
               <div className="cf-hero-logo">CourtFlow</div>
               <p className="cf-hero-tag">Book your court in seconds — pick a date, choose your slot, and you're on.</p>
