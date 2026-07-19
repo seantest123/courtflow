@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
   LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users,
@@ -132,6 +132,183 @@ function getMonthMatrix(dateStr) {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   const monthLabel = firstDay.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   return { weeks, monthLabel };
+}
+
+// Hero pickleball rally scene — JS-driven (requestAnimationFrame), replacing the
+// earlier fixed CSS keyframe loop. Each paddle moves on its own independent
+// sine rhythm (own amplitude/period/phase). The ball, when launched, reads a
+// randomized flight duration, predicts where the destination paddle's own
+// rhythm formula will place it at arrival, and flies to that exact point —
+// so contact is always geometrically correct without a shared fixed timeline,
+// and landing height varies every rally (top/middle/bottom, never fixed-center).
+function HeroRallyScene() {
+  const sceneRef = useRef(null);
+  const leftPaddleRef = useRef(null);
+  const rightPaddleRef = useRef(null);
+  const ballRef = useRef(null);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const leftEl = leftPaddleRef.current;
+    const rightEl = rightPaddleRef.current;
+    const ballEl = ballRef.current;
+    if (!scene || !leftEl || !rightEl || !ballEl) return;
+
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Each paddle gets its own independent rhythm — different period, phase,
+    // and amplitude ratio — so the two never move in lockstep.
+    const paddles = {
+      left: { period: 3.2 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2, ampRatio: 0.26 + Math.random() * 0.08, lungeUntil: -1 },
+      right: { period: 3.6 + Math.random() * 1.6, phase: Math.random() * Math.PI * 2, ampRatio: 0.26 + Math.random() * 0.08, lungeUntil: -1 },
+    };
+
+    function ampFor(p, heightPx, paddleHeightPx) {
+      const maxAmp = Math.max(0, heightPx / 2 - paddleHeightPx / 2 - 22);
+      return Math.min(heightPx * p.ampRatio, maxAmp);
+    }
+
+    function paddleY(key, tSec, heightPx, paddleHeightPx) {
+      const p = paddles[key];
+      const amp = ampFor(p, heightPx, paddleHeightPx);
+      return amp * Math.sin((2 * Math.PI * tSec) / p.period + p.phase);
+    }
+
+    if (prefersReduced) {
+      // Static, calmer frame: paddles centered, ball resting at mid-court.
+      leftEl.style.transform = "translateY(0px)";
+      rightEl.style.transform = "scaleX(-1) translateY(0px)";
+      ballEl.style.left = "50%";
+      ballEl.style.top = "50%";
+      ballEl.style.transform = "translate(-50%, -50%)";
+      return;
+    }
+
+    let raf;
+    let start = null;
+    let flight = null; // { fromKey, toKey, fromX, fromY, toX, toY, dur, t0, arc, jitter }
+
+    function launchFlight(fromKey, nowSec, heightPx, widthPx, paddleHeightPx) {
+      const toKey = fromKey === "left" ? "right" : "left";
+      const dur = 0.75 + Math.random() * 0.5;
+      const fromX = fromKey === "left" ? widthPx * 0.14 : widthPx * 0.86;
+      const toX = toKey === "left" ? widthPx * 0.14 : widthPx * 0.86;
+      const fromY = paddleY(fromKey, nowSec, heightPx, paddleHeightPx);
+      // Predict where the destination paddle's own rhythm will place it
+      // once this flight's duration has elapsed — this is what lets the
+      // ball land anywhere along the paddle's range, not just the center.
+      const toY = paddleY(toKey, nowSec + dur, heightPx, paddleHeightPx);
+      const arc = heightPx * (0.12 + Math.random() * 0.12) * (Math.random() < 0.5 ? -1 : 1);
+      const jitter = (Math.random() - 0.5) * heightPx * 0.08;
+      flight = { fromKey, toKey, fromX, fromY, toX, toY, dur, t0: nowSec, arc, jitter };
+    }
+
+    function applyPaddleTransform(el, key, baseY, nowSec, mirror) {
+      const p = paddles[key];
+      let extra = "";
+      const lungeDur = 0.18;
+      const elapsed = nowSec - (p.lungeUntil - lungeDur);
+      if (elapsed >= 0 && elapsed <= lungeDur) {
+        const prog = elapsed / lungeDur;
+        const ease = 1 - Math.pow(1 - prog, 3);
+        const bump = Math.sin(ease * Math.PI); // 0 -> 1 -> 0 pulse
+        const dir = key === "left" ? 1 : -1;
+        extra = ` translateX(${dir * 16 * bump}px) scale(${1 + 0.08 * bump}) rotate(${dir * -6 * bump}deg)`;
+      }
+      el.style.transform = `${mirror ? "scaleX(-1) " : ""}translateY(${baseY}px)${extra}`;
+    }
+
+    function tick(ts) {
+      if (start === null) start = ts;
+      const nowSec = (ts - start) / 1000;
+      const rect = scene.getBoundingClientRect();
+      const heightPx = rect.height;
+      const widthPx = rect.width;
+      const paddleHeightPx = leftEl.offsetHeight || heightPx * 0.25;
+      const centerY = heightPx / 2;
+
+      if (!flight) {
+        launchFlight("left", nowSec, heightPx, widthPx, paddleHeightPx);
+      }
+
+      const leftY = paddleY("left", nowSec, heightPx, paddleHeightPx);
+      const rightY = paddleY("right", nowSec, heightPx, paddleHeightPx);
+      applyPaddleTransform(leftEl, "left", leftY, nowSec, false);
+      applyPaddleTransform(rightEl, "right", rightY, nowSec, true);
+
+      const t = Math.min((nowSec - flight.t0) / flight.dur, 1);
+      const lerp = (a, b, tt) => a + (b - a) * tt;
+      const x = lerp(flight.fromX, flight.toX, t);
+      const linearY = lerp(flight.fromY, flight.toY, t);
+      const arcOffset = -4 * flight.arc * t * (1 - t); // parabolic dip, peak at t=0.5
+      const jitterOffset = flight.jitter * Math.sin(Math.PI * t);
+      const y = centerY + linearY + arcOffset + jitterOffset;
+
+      ballEl.style.left = `${x}px`;
+      ballEl.style.top = `${y}px`;
+      ballEl.style.transform = `translate(-50%, -50%) rotate(${t * 300}deg)`;
+
+      if (t >= 1) {
+        const arrivedKey = flight.toKey;
+        paddles[arrivedKey].lungeUntil = nowSec + 0.18;
+        launchFlight(arrivedKey, nowSec, heightPx, widthPx, paddleHeightPx);
+      }
+
+      raf = requestAnimationFrame(tick);
+    }
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="cf-hero-scene" ref={sceneRef} aria-hidden="true">
+      <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="paddleFaceClip">
+            <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+          </clipPath>
+        </defs>
+        <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+        <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+        <g clipPath="url(#paddleFaceClip)">
+          <rect x="70" y="10" width="180" height="140" fill="var(--brand-primary)" />
+          <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-secondary)" />
+        </g>
+        <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+      </svg>
+
+      <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="paddleFaceClipR">
+            <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+          </clipPath>
+        </defs>
+        <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+        <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+        <g clipPath="url(#paddleFaceClipR)">
+          <rect x="70" y="10" width="180" height="140" fill="var(--brand-secondary)" />
+          <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-primary)" />
+        </g>
+        <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+      </svg>
+
+      <svg className="cf-ball" ref={ballRef} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="18" fill="#D6E64A" stroke="#A8BB2E" strokeWidth="1.5" />
+        <circle cx="14" cy="12" r="1.8" fill="#A8BB2E" />
+        <circle cx="24" cy="10" r="1.8" fill="#A8BB2E" />
+        <circle cx="30" cy="18" r="1.8" fill="#A8BB2E" />
+        <circle cx="10" cy="22" r="1.8" fill="#A8BB2E" />
+        <circle cx="18" cy="28" r="1.8" fill="#A8BB2E" />
+        <circle cx="28" cy="28" r="1.8" fill="#A8BB2E" />
+        <circle cx="20" cy="20" r="1.8" fill="#A8BB2E" />
+      </svg>
+    </div>
+  );
 }
 
 function CustomerApp() {
@@ -686,7 +863,7 @@ function CustomerApp() {
 
         /* Hero banner */
         .cf-home-bg {
-          background: var(--brand-primary);
+          background: #fff;
         }
         .cf-hero {
           position: relative;
@@ -698,6 +875,16 @@ function CustomerApp() {
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+        .cf-hero-fade {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 140px;
+          background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #fff 100%);
+          z-index: 1;
+          pointer-events: none;
         }
         .cf-hero-court {
           position: absolute;
@@ -812,52 +999,9 @@ function CustomerApp() {
               </svg>
             </div>
 
-            <div className="cf-hero-scene" aria-hidden="true">
-              <svg className="cf-paddle cf-paddle-left" viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <clipPath id="paddleFaceClip">
-                    <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
-                  </clipPath>
-                </defs>
-                <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-                <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
-                <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
-                <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
-                <g clipPath="url(#paddleFaceClip)">
-                  <rect x="70" y="10" width="180" height="140" fill="var(--brand-primary)" />
-                  <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-secondary)" />
-                </g>
-                <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
-              </svg>
+            <HeroRallyScene />
 
-              <svg className="cf-paddle cf-paddle-right" viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <clipPath id="paddleFaceClipR">
-                    <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
-                  </clipPath>
-                </defs>
-                <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-                <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
-                <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
-                <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
-                <g clipPath="url(#paddleFaceClipR)">
-                  <rect x="70" y="10" width="180" height="140" fill="var(--brand-secondary)" />
-                  <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-primary)" />
-                </g>
-                <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
-              </svg>
-
-              <svg className="cf-ball" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="20" cy="20" r="18" fill="#D6E64A" stroke="#A8BB2E" strokeWidth="1.5" />
-                <circle cx="14" cy="12" r="1.8" fill="#A8BB2E" />
-                <circle cx="24" cy="10" r="1.8" fill="#A8BB2E" />
-                <circle cx="30" cy="18" r="1.8" fill="#A8BB2E" />
-                <circle cx="10" cy="22" r="1.8" fill="#A8BB2E" />
-                <circle cx="18" cy="28" r="1.8" fill="#A8BB2E" />
-                <circle cx="28" cy="28" r="1.8" fill="#A8BB2E" />
-                <circle cx="20" cy="20" r="1.8" fill="#A8BB2E" />
-              </svg>
-            </div>
+            <div className="cf-hero-fade" aria-hidden="true" />
 
             <div className="cf-hero-inner">
               <div className="cf-hero-logo">CourtFlow</div>
@@ -870,10 +1014,10 @@ function CustomerApp() {
 
           <section id="membership" style={{ padding: "56px 32px" }}>
             <div style={{ maxWidth: 480, margin: "0 auto" }}>
-              <h2 className="cf-heading" style={{ fontSize: 30, color: "#fff", textAlign: "center", marginBottom: 8, textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}>
+              <h2 className="cf-heading" style={{ fontSize: 30, color: COLORS.onyx, textAlign: "center", marginBottom: 8 }}>
                 Be part of the community
               </h2>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", textAlign: "center", marginBottom: 28 }}>
+              <p style={{ fontSize: 13, color: COLORS.muted, textAlign: "center", marginBottom: 28 }}>
                 Create your account to book faster, track your bookings, and manage your balance.
               </p>
 
@@ -944,8 +1088,8 @@ function CustomerApp() {
 
           <section id="blog" style={{ padding: "56px 32px" }}>
             <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
-              <h2 className="cf-heading" style={{ fontSize: 26, color: "#fff", marginBottom: 8, textShadow: "0 1px 6px rgba(0,0,0,0.2)" }}>Blog</h2>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>Court tips, community stories, and updates — coming soon.</p>
+              <h2 className="cf-heading" style={{ fontSize: 26, color: COLORS.onyx, marginBottom: 8 }}>Blog</h2>
+              <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
             </div>
           </section>
         </div>
@@ -1366,9 +1510,9 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   if (courtSettings?.status === "maintenance") {
     return (
       <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
-        <Settings size={32} color="rgba(255,255,255,0.85)" style={{ marginBottom: 16 }} />
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: "#fff", marginBottom: 8 }}>Court under maintenance</h1>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.85)" }}>
+        <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Court under maintenance</h1>
+        <p style={{ fontSize: 14, color: COLORS.muted }}>
           We're temporarily closed for maintenance. Please check back soon — bookings will reopen once work is complete.
         </p>
       </div>
@@ -1432,7 +1576,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         )}
       </div>
 
-      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", marginBottom: 12 }}>{formatHourLabel(startHour)} – {formatHourLabel(endHour)} | ₱300/hour</p>
+      <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 12 }}>{formatHourLabel(startHour)} – {formatHourLabel(endHour)} | ₱300/hour</p>
 
       {dayClosure && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, background: STATUS.unavailable.bg, border: `1px solid ${STATUS.unavailable.border}`, borderRadius: 8, padding: "10px 14px", marginBottom: 16 }}>
@@ -1522,7 +1666,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
         {["available", "selected", "mine", "booked", "unavailable"].map((key) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 14, height: 14, borderRadius: 999, background: STATUS[key].bg, border: key === "available" ? `1px solid ${STATUS[key].border}` : "none", display: "inline-block" }} />
-            <span style={{ color: "rgba(255,255,255,0.85)" }}>{STATUS[key].label}</span>
+            <span style={{ color: COLORS.muted }}>{STATUS[key].label}</span>
           </div>
         ))}
       </div>
@@ -1540,7 +1684,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
           Book now
         </button>
       </div>
-      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", fontStyle: "italic", marginTop: 8 }}>
+      <p style={{ fontSize: 11, color: COLORS.muted, fontStyle: "italic", marginTop: 8 }}>
         Prices may vary — this isn't the final amount, it may change based on your payment method.
       </p>
     </div>

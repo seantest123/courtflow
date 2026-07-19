@@ -52,17 +52,11 @@ body {
 }
 
 /* ---------------------------------------------------------- */
-/* Hero pickleball rally animation                             */
+/* Hero pickleball rally animation (JS-driven, see HeroRallyScene) */
 /* ---------------------------------------------------------- */
 :root {
-  --rally-duration: 2s;
-  --paddle-hop: 70px;
-  --lunge-x: 16px;
-  --ball-arc: 70px;
-  --ball-left-x: 6%;
-  --ball-right-x: 94%;
-  --paddle-w: 100px;
-  --paddle-h: 62px;
+  --paddle-w: 150px;
+  --paddle-h: 92px;
   --ball-size: 34px;
 }
 
@@ -81,100 +75,41 @@ body {
   height: var(--paddle-h);
   margin-top: calc(var(--paddle-h) / -2);
   filter: drop-shadow(0 6px 10px rgba(0,0,0,0.25));
+  will-change: transform;
 }
 
+/* Positioned so the whole paddle (including handle) stays fully visible
+   at the edge, rather than bleeding off-canvas. Vertical motion + lunge
+   are applied via inline transform from HeroRallyScene's animation loop. */
 .cf-paddle-left {
-  left: -18px;
-  animation: cf-paddle-left-loop var(--rally-duration) ease-in-out infinite;
+  left: 10px;
 }
 
 .cf-paddle-right {
-  right: -18px;
+  right: 10px;
   transform: scaleX(-1);
-  animation: cf-paddle-right-loop var(--rally-duration) ease-in-out infinite;
 }
 
 .cf-ball {
   position: absolute;
-  top: 50%;
-  left: var(--ball-left-x);
   width: var(--ball-size);
   height: var(--ball-size);
-  margin-top: calc(var(--ball-size) / -2);
   filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
-  animation: cf-ball-loop var(--rally-duration) ease-in-out infinite;
-}
-
-/* Left paddle: contact happens at loop boundary (0% / 100%), just transits
-   center (no lunge) at the 50% mark while the right paddle takes contact. */
-@keyframes cf-paddle-left-loop {
-  0%   { transform: translate(var(--lunge-x), 0) scale(1.08) rotate(-6deg); }
-  5%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  20%  { transform: translate(0, calc(var(--paddle-hop) * -1)) rotate(0deg); }
-  30%  { transform: translate(0, calc(var(--paddle-hop) * -1)) rotate(0deg); }
-  50%  { transform: translate(0, 0) rotate(0deg); }
-  70%  { transform: translate(0, var(--paddle-hop)) rotate(0deg); }
-  80%  { transform: translate(0, var(--paddle-hop)) rotate(0deg); }
-  95%  { transform: translate(0, 0) scale(1) rotate(0deg); }
-  100% { transform: translate(var(--lunge-x), 0) scale(1.08) rotate(-6deg); }
-}
-
-/* Right paddle: mirrored vertical travel, contact (lunge) at the 50% mark. */
-@keyframes cf-paddle-right-loop {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  20%  { transform: translate(0, var(--paddle-hop)) rotate(0deg); }
-  30%  { transform: translate(0, var(--paddle-hop)) rotate(0deg); }
-  45%  { transform: translate(0, 0) scale(1) rotate(0deg); }
-  50%  { transform: translate(var(--lunge-x), 0) scale(1.08) rotate(6deg); }
-  55%  { transform: translate(0, 0) scale(1) rotate(0deg); }
-  70%  { transform: translate(0, calc(var(--paddle-hop) * -1)) rotate(0deg); }
-  80%  { transform: translate(0, calc(var(--paddle-hop) * -1)) rotate(0deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
-}
-
-/* Ball: travels left→right with an upward arc, then right→left with a
-   downward arc, arriving at each paddle exactly on the shared timeline. */
-@keyframes cf-ball-loop {
-  0%   { left: var(--ball-left-x); transform: translateY(0) rotate(0deg); }
-  25%  { left: 50%; transform: translateY(calc(var(--ball-arc) * -1)) rotate(160deg); }
-  50%  { left: var(--ball-right-x); transform: translateY(0) rotate(320deg); }
-  75%  { left: 50%; transform: translateY(var(--ball-arc)) rotate(480deg); }
-  100% { left: var(--ball-left-x); transform: translateY(0) rotate(640deg); }
+  will-change: left, top, transform;
 }
 
 @media (max-width: 900px) {
   :root {
-    --paddle-hop: 46px;
-    --lunge-x: 10px;
-    --ball-arc: 46px;
-    --ball-left-x: 10%;
-    --ball-right-x: 90%;
-    --paddle-w: 74px;
-    --paddle-h: 46px;
+    --paddle-w: 108px;
+    --paddle-h: 66px;
     --ball-size: 26px;
   }
 }
 
 @media (max-width: 560px) {
   :root {
-    --paddle-hop: 28px;
-    --lunge-x: 6px;
-    --ball-arc: 28px;
-    --ball-left-x: 14%;
-    --ball-right-x: 86%;
-    --paddle-w: 54px;
-    --paddle-h: 34px;
+    --paddle-w: 78px;
+    --paddle-h: 48px;
     --ball-size: 18px;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cf-paddle-left,
-  .cf-paddle-right,
-  .cf-ball {
-    animation: none !important;
-  }
-  .cf-paddle-left { transform: translate(0,0); }
-  .cf-paddle-right { transform: scaleX(-1); }
-  .cf-ball { left: 50%; transform: translateY(0); }
 }
