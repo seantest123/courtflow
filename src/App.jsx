@@ -923,6 +923,7 @@ function CustomerApp() {
           padding: 72px 32px;
           min-height: 100vh;
           min-height: 100svh;
+          min-height: 100dvh;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -934,6 +935,16 @@ function CustomerApp() {
           bottom: 0;
           height: 140px;
           background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #fff 100%);
+          z-index: 1;
+          pointer-events: none;
+        }
+        .cf-hero-fade-top {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          height: 140px;
+          background: linear-gradient(to bottom, rgba(46,126,176,0.55) 0%, rgba(46,126,176,0) 100%);
           z-index: 1;
           pointer-events: none;
         }
@@ -1103,6 +1114,7 @@ function CustomerApp() {
 
             <HeroRallyScene />
 
+            <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
 
             <div className="cf-hero-inner">
