@@ -935,7 +935,7 @@ function CustomerApp() {
           bottom: 0;
           height: 140px;
           background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #fff 100%);
-          z-index: 1;
+          z-index: 3;
           pointer-events: none;
         }
         .cf-hero-fade-top {
@@ -944,8 +944,8 @@ function CustomerApp() {
           right: 0;
           top: 0;
           height: 140px;
-          background: linear-gradient(to bottom, rgba(46,126,176,0.55) 0%, rgba(46,126,176,0) 100%);
-          z-index: 1;
+          background: linear-gradient(to bottom, #fff 0%, rgba(255,255,255,0) 100%);
+          z-index: 3;
           pointer-events: none;
         }
         .cf-hero-court {
@@ -984,7 +984,7 @@ function CustomerApp() {
         }
         .cf-hero-inner {
           position: relative;
-          z-index: 2;
+          z-index: 4;
           max-width: 620px;
           margin: 0 auto;
           text-align: center;
