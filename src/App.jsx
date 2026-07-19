@@ -202,7 +202,7 @@ function HeroRallyScene() {
     // matches the paddle SVG's viewBox (face spans x:70-210 of a 220-wide
     // box), so the ball always targets the real paddle face, not a fixed
     // percentage of hero width (which broke on wider desktop screens).
-    const FACE_FRAC = 140 / 220;
+    const FACE_FRAC = 136 / 220;
 
     function paddleFaceX(key) {
       const el = key === "left" ? leftEl : rightEl;
@@ -290,37 +290,47 @@ function HeroRallyScene() {
       <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClip">
-            <rect x="70" y="10" width="140" height="260" rx="26" ry="26" />
+            <rect x="76" y="20" width="120" height="192" rx="30" ry="30" />
           </clipPath>
         </defs>
-        <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-        <line x1="6" y1="114" x2="70" y2="114" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="130" x2="70" y2="130" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="146" x2="70" y2="146" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="162" x2="70" y2="162" stroke="#C9B98E" strokeWidth="4" />
+        {/* Continuous cream body: handle + throat + bezel frame, all one piece so there's no seam */}
+        <rect x="0" y="98" width="46" height="84" rx="16" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
+        <rect x="20" y="104" width="52" height="72" fill="#F3ECD8" />
+        <rect x="58" y="4" width="156" height="224" rx="46" ry="46" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
+        {/* accent collar at the throat */}
+        <rect x="40" y="96" width="14" height="88" fill="var(--brand-secondary)" />
+        {/* grip wrap lines on the handle */}
+        <line x1="6" y1="112" x2="40" y2="112" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="128" x2="40" y2="128" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="144" x2="40" y2="144" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="160" x2="40" y2="160" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="176" x2="40" y2="176" stroke="#C9B98E" strokeWidth="3" />
+        {/* colored face, wave split, inset within the cream bezel */}
         <g clipPath="url(#paddleFaceClip)">
-          <rect x="70" y="10" width="140" height="260" fill="var(--brand-primary)" />
-          <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-secondary)" />
+          <rect x="76" y="20" width="120" height="192" fill="var(--brand-primary)" />
+          <path d="M76,130 Q136,95 196,130 V212 H76 Z" fill="var(--brand-secondary)" />
         </g>
-        <rect x="70" y="10" width="140" height="260" rx="26" ry="26" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClipR">
-            <rect x="70" y="10" width="140" height="260" rx="26" ry="26" />
+            <rect x="76" y="20" width="120" height="192" rx="30" ry="30" />
           </clipPath>
         </defs>
-        <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-        <line x1="6" y1="114" x2="70" y2="114" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="130" x2="70" y2="130" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="146" x2="70" y2="146" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="162" x2="70" y2="162" stroke="#C9B98E" strokeWidth="4" />
+        <rect x="0" y="98" width="46" height="84" rx="16" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
+        <rect x="20" y="104" width="52" height="72" fill="#F3ECD8" />
+        <rect x="58" y="4" width="156" height="224" rx="46" ry="46" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
+        <rect x="40" y="96" width="14" height="88" fill="var(--brand-primary)" />
+        <line x1="6" y1="112" x2="40" y2="112" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="128" x2="40" y2="128" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="144" x2="40" y2="144" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="160" x2="40" y2="160" stroke="#C9B98E" strokeWidth="3" />
+        <line x1="6" y1="176" x2="40" y2="176" stroke="#C9B98E" strokeWidth="3" />
         <g clipPath="url(#paddleFaceClipR)">
-          <rect x="70" y="10" width="140" height="260" fill="var(--brand-secondary)" />
-          <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-primary)" />
+          <rect x="76" y="20" width="120" height="192" fill="var(--brand-secondary)" />
+          <path d="M76,130 Q136,95 196,130 V212 H76 Z" fill="var(--brand-primary)" />
         </g>
-        <rect x="70" y="10" width="140" height="260" rx="26" ry="26" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-ball" ref={ballRef} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
@@ -920,6 +930,33 @@ function CustomerApp() {
           opacity: 0.45;
           pointer-events: none;
         }
+        .cf-court-boundary {
+          position: absolute;
+          top: 8%; bottom: 8%; left: 3.75%; right: 3.75%;
+          border: 3px solid #fff;
+        }
+        .cf-court-kitchen {
+          position: absolute;
+          top: 8%; bottom: 8%;
+          background: rgba(255,255,255,0.12);
+        }
+        .cf-court-kitchen-left { left: 35.3125%; right: 50%; border-left: 3px solid #fff; }
+        .cf-court-kitchen-right { left: 50%; right: 35.3125%; border-right: 3px solid #fff; }
+        .cf-court-centerline {
+          position: absolute;
+          top: 50%;
+          height: 2px;
+          background: rgba(255,255,255,0.7);
+        }
+        .cf-court-centerline-left { left: 3.75%; right: 64.6875%; }
+        .cf-court-centerline-right { left: 64.6875%; right: 3.75%; }
+        .cf-court-net {
+          position: absolute;
+          top: 8%; bottom: 8%; left: 50%;
+          width: 6px;
+          margin-left: -3px;
+          background: var(--brand-secondary);
+        }
         .cf-hero-inner {
           position: relative;
           z-index: 2;
@@ -934,9 +971,23 @@ function CustomerApp() {
           margin-top: 24px; height: 46px; padding: 0 24px;
           border-radius: 999px; border: none;
           background: ${COLORS.gold}; color: #fff; font-size: 14px; font-weight: 600;
+          animation: cf-cta-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes cf-cta-in {
+          0% { opacity: 0; transform: translateY(14px) scale(0.94); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
         }
         .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.05); }
-        .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; }
+        .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
+        @media (max-width: 640px) {
+          .cf-topnav { padding: 14px 14px !important; }
+          .cf-nav-links { gap: 12px !important; }
+          .cf-nav-link { font-size: 11px !important; }
+        }
+        @media (max-width: 420px) {
+          .cf-nav-links { gap: 8px !important; }
+          .cf-nav-link { font-size: 10px !important; }
+        }
         .cf-nav-link:hover { color: ${COLORS.onyx} !important; }
 
         /* Legacy section bands — kept as no-ops for any other usage */
@@ -945,9 +996,9 @@ function CustomerApp() {
       `}</style>
 
       {/* Top nav */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
+      <div className="cf-topnav" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
         <div style={{ justifySelf: "start" }} />
-        <div style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
+        <div className="cf-nav-links" style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
           <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
             Home
           </button>
@@ -963,7 +1014,7 @@ function CustomerApp() {
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
           {!loggedIn ? (
-            <button className="cf-btn" onClick={() => setShowLogin(true)} style={{ height: 34, padding: "0 16px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13 }}>
+            <button className="cf-btn" onClick={() => setShowLogin(true)} style={{ height: 34, padding: "0 16px", borderRadius: 8, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, whiteSpace: "nowrap" }}>
               Log in
             </button>
           ) : (
@@ -1012,16 +1063,12 @@ function CustomerApp() {
         <div className="cf-home-bg">
           <div id="home-top" className="cf-hero">
             <div className="cf-hero-court" aria-hidden="true">
-              <svg viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-                <rect x="60" y="40" width="1480" height="520" fill="none" stroke="#FFFFFF" strokeWidth="5" />
-                <rect x="565" y="40" width="235" height="520" fill="#FFFFFF" fillOpacity="0.12" />
-                <rect x="800" y="40" width="235" height="520" fill="#FFFFFF" fillOpacity="0.12" />
-                <line x1="565" y1="40" x2="565" y2="560" stroke="#FFFFFF" strokeWidth="4" />
-                <line x1="1035" y1="40" x2="1035" y2="560" stroke="#FFFFFF" strokeWidth="4" />
-                <line x1="800" y1="40" x2="800" y2="560" stroke="var(--brand-secondary)" strokeWidth="12" />
-                <line x1="60" y1="300" x2="565" y2="300" stroke="#FFFFFF" strokeWidth="3" strokeOpacity="0.7" />
-                <line x1="1035" y1="300" x2="1540" y2="300" stroke="#FFFFFF" strokeWidth="3" strokeOpacity="0.7" />
-              </svg>
+              <div className="cf-court-boundary" />
+              <div className="cf-court-kitchen cf-court-kitchen-left" />
+              <div className="cf-court-kitchen cf-court-kitchen-right" />
+              <div className="cf-court-centerline cf-court-centerline-left" />
+              <div className="cf-court-centerline cf-court-centerline-right" />
+              <div className="cf-court-net" />
             </div>
 
             <HeroRallyScene />
