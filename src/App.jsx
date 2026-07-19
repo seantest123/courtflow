@@ -116,6 +116,16 @@ function addDays(dateStr, delta) {
   return toDateStr(d);
 }
 
+function addMonths(dateStr, delta) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + delta);
+  const daysInTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, daysInTarget));
+  return toDateStr(d);
+}
+
 function getMonthMatrix(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`);
   const year = d.getFullYear();
@@ -280,7 +290,7 @@ function HeroRallyScene() {
       <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClip">
-            <rect x="70" y="10" width="140" height="260" rx="60" ry="60" />
+            <rect x="70" y="10" width="140" height="260" rx="26" ry="26" />
           </clipPath>
         </defs>
         <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
@@ -292,13 +302,13 @@ function HeroRallyScene() {
           <rect x="70" y="10" width="140" height="260" fill="var(--brand-primary)" />
           <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-secondary)" />
         </g>
-        <rect x="70" y="10" width="140" height="260" rx="60" ry="60" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+        <rect x="70" y="10" width="140" height="260" rx="26" ry="26" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClipR">
-            <rect x="70" y="10" width="140" height="260" rx="60" ry="60" />
+            <rect x="70" y="10" width="140" height="260" rx="26" ry="26" />
           </clipPath>
         </defs>
         <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
@@ -310,7 +320,7 @@ function HeroRallyScene() {
           <rect x="70" y="10" width="140" height="260" fill="var(--brand-secondary)" />
           <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-primary)" />
         </g>
-        <rect x="70" y="10" width="140" height="260" rx="60" ry="60" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+        <rect x="70" y="10" width="140" height="260" rx="26" ry="26" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-ball" ref={ballRef} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
@@ -887,7 +897,8 @@ function CustomerApp() {
           background: linear-gradient(180deg, var(--brand-primary-dark) 0%, var(--brand-primary) 100%);
           color: #fff;
           padding: 72px 32px;
-          min-height: 340px;
+          min-height: 100vh;
+          min-height: 100svh;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -915,9 +926,6 @@ function CustomerApp() {
           max-width: 620px;
           margin: 0 auto;
           text-align: center;
-          padding: 20px 28px 28px;
-          border-radius: var(--radius-lg);
-          background: radial-gradient(ellipse at center, rgba(18,16,13,0.38) 0%, rgba(18,16,13,0.18) 55%, transparent 80%);
         }
         .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.35); }
         .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.92); margin-top: 8px; max-width: 480px; text-shadow: 0 1px 6px rgba(0,0,0,0.35); }
@@ -926,9 +934,8 @@ function CustomerApp() {
           margin-top: 24px; height: 46px; padding: 0 24px;
           border-radius: 999px; border: none;
           background: ${COLORS.gold}; color: #fff; font-size: 14px; font-weight: 600;
-          box-shadow: var(--shadow-md);
         }
-        .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); box-shadow: var(--shadow-lg); filter: brightness(1.05); }
+        .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.05); }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; }
         .cf-nav-link:hover { color: ${COLORS.onyx} !important; }
 
@@ -1508,7 +1515,8 @@ function CustomerApp() {
 
 function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHours, myHours, selected, toggleSlot, basePrice, handleBookNow, dayClosure, courtSettings, startHour, endHour }) {
   const [showMonth, setShowMonth] = useState(false);
-  const { weeks, monthLabel } = useMemo(() => getMonthMatrix(selectedDate), [selectedDate]);
+  const [calendarViewDate, setCalendarViewDate] = useState(selectedDate);
+  const { weeks, monthLabel } = useMemo(() => getMonthMatrix(calendarViewDate), [calendarViewDate]);
   const currentHour = new Date().getHours();
   const isPastDate = selectedDate < todayStr();
 
@@ -1544,7 +1552,15 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
           <ChevronLeft size={18} color={COLORS.onyx} />
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button className="cf-btn" onClick={() => setShowMonth((v) => !v)} style={{ background: "none", padding: 4, display: "flex" }} aria-label="Open calendar">
+          <button
+            className="cf-btn"
+            onClick={() => {
+              setShowMonth((v) => !v);
+              setCalendarViewDate(selectedDate);
+            }}
+            style={{ background: "none", padding: 4, display: "flex" }}
+            aria-label="Open calendar"
+          >
             <Calendar size={16} color={COLORS.muted} />
           </button>
           <span style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx }}>{formatDateLabel(selectedDate)}</span>
@@ -1556,7 +1572,15 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
 
         {showMonth && (
           <div style={{ position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "#fff", border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 16, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", zIndex: 10, width: 280 }}>
-            <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, textAlign: "center", marginBottom: 10 }}>{monthLabel}</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <button className="cf-btn" onClick={() => setCalendarViewDate(addMonths(calendarViewDate, -1))} style={{ background: "none", padding: 4 }} aria-label="Previous month">
+                <ChevronLeft size={16} color={COLORS.onyx} />
+              </button>
+              <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, textAlign: "center" }}>{monthLabel}</p>
+              <button className="cf-btn" onClick={() => setCalendarViewDate(addMonths(calendarViewDate, 1))} style={{ background: "none", padding: 4 }} aria-label="Next month">
+                <ChevronRight size={16} color={COLORS.onyx} />
+              </button>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", fontSize: 11, color: COLORS.muted, textAlign: "center", marginBottom: 4 }}>
               {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => <span key={d}>{d}</span>)}
             </div>
