@@ -679,6 +679,23 @@ function CustomerApp() {
     window.scrollTo(0, 0);
   }
 
+  function scrollToSection(id) {
+    function scroll() {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 76;
+      const targetTop = id === "home-top" ? 0 : el.getBoundingClientRect().top + window.scrollY - navH;
+      window.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+    }
+    if (view !== "home") {
+      setView("home");
+      // Wait a tick for the home sections to mount before measuring/scrolling.
+      setTimeout(scroll, 50);
+    } else {
+      scroll();
+    }
+  }
+
   async function handleMembershipSubmit(e) {
     e.preventDefault();
     setMemberError("");
@@ -998,6 +1015,11 @@ function CustomerApp() {
           border-bottom: 1px solid rgba(225, 218, 201, 0.6);
         }
 
+        .cf-scroll-section {
+          min-height: calc(100vh - var(--nav-h));
+          box-sizing: border-box;
+        }
+
         /* Legacy section bands — kept as no-ops for any other usage */
         .cf-section-cream { background: transparent; }
         .cf-section-tint { background: transparent; }
@@ -1007,16 +1029,16 @@ function CustomerApp() {
       <div className="cf-topnav" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px" }}>
         <div style={{ justifySelf: "start" }} />
         <div className="cf-nav-links" style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
-          <button className="cf-btn cf-nav-link" onClick={() => goToView("home")} style={{ color: view === "home" ? COLORS.onyx : COLORS.muted, fontWeight: view === "home" ? 600 : 400 }}>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
             Home
           </button>
-          <button className="cf-btn cf-nav-link" onClick={() => goToView("booking")} style={{ color: view === "booking" ? COLORS.onyx : COLORS.muted, fontWeight: view === "booking" ? 600 : 400 }}>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("booking")} style={{ color: COLORS.muted }}>
             Court booking
           </button>
-          <button className="cf-btn cf-nav-link" onClick={() => goToView("blog")} style={{ color: view === "blog" ? COLORS.onyx : COLORS.muted, fontWeight: view === "blog" ? 600 : 400 }}>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("blog")} style={{ color: COLORS.muted }}>
             Blog
           </button>
-          <button className="cf-btn cf-nav-link" onClick={() => goToView("membership")} style={{ color: view === "membership" ? COLORS.onyx : COLORS.muted, fontWeight: view === "membership" ? 600 : 400 }}>
+          <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("membership")} style={{ color: COLORS.muted }}>
             Membership
           </button>
         </div>
@@ -1068,113 +1090,109 @@ function CustomerApp() {
       </div>
 
       {view === "home" && (
-        <div id="home-top" className="cf-hero">
-          <div className="cf-hero-court" aria-hidden="true">
-            <div className="cf-court-boundary" />
-            <div className="cf-court-kitchen cf-court-kitchen-left" />
-            <div className="cf-court-kitchen cf-court-kitchen-right" />
-            <div className="cf-court-centerline cf-court-centerline-left" />
-            <div className="cf-court-centerline cf-court-centerline-right" />
-            <div className="cf-court-net" />
-          </div>
+        <>
+          <section id="home-top" className="cf-hero">
+            <div className="cf-hero-court" aria-hidden="true">
+              <div className="cf-court-boundary" />
+              <div className="cf-court-kitchen cf-court-kitchen-left" />
+              <div className="cf-court-kitchen cf-court-kitchen-right" />
+              <div className="cf-court-centerline cf-court-centerline-left" />
+              <div className="cf-court-centerline cf-court-centerline-right" />
+              <div className="cf-court-net" />
+            </div>
 
-          <HeroRallyScene />
+            <HeroRallyScene />
 
-          <div className="cf-hero-fade" aria-hidden="true" />
+            <div className="cf-hero-fade" aria-hidden="true" />
 
-          <div className="cf-hero-inner">
-            <button className="cf-btn cf-cta-pill" onClick={() => goToView("membership")}>
-              Join CourtFlow Community
-            </button>
-          </div>
-        </div>
-      )}
+            <div className="cf-hero-inner">
+              <button className="cf-btn cf-cta-pill" onClick={() => scrollToSection("membership")}>
+                Join CourtFlow Community
+              </button>
+            </div>
+          </section>
 
-      {view === "booking" && (
-        <div className="cf-view-page">
-          <HomeView
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            isToday={isToday}
-            bySection={bySection}
-            bookedHours={bookedHours}
-            myHours={myHours}
-            selected={selected}
-            toggleSlot={toggleSlot}
-            basePrice={basePrice}
-            handleBookNow={handleBookNow}
-            dayClosure={dayClosure}
-            courtSettings={courtSettings}
-            startHour={startHour}
-            endHour={endHour}
-          />
-        </div>
-      )}
+          <section id="membership" className="cf-scroll-section" style={{ paddingLeft: 32, paddingRight: 32, paddingTop: 56, paddingBottom: 56 }}>
+            <div style={{ maxWidth: 480, margin: "0 auto" }}>
+              <h2 className="cf-heading" style={{ fontSize: 30, color: COLORS.onyx, textAlign: "center", marginBottom: 8 }}>
+                Be part of the community
+              </h2>
+              <p style={{ fontSize: 13, color: COLORS.muted, textAlign: "center", marginBottom: 28 }}>
+                Create your account to book faster, track your bookings, and manage your balance.
+              </p>
 
-      {view === "membership" && (
-        <div className="cf-view-page" style={{ paddingLeft: 32, paddingRight: 32, paddingBottom: 56 }}>
-          <div style={{ maxWidth: 480, margin: "0 auto" }}>
-            <h2 className="cf-heading" style={{ fontSize: 30, color: COLORS.onyx, textAlign: "center", marginBottom: 8 }}>
-              Be part of the community
-            </h2>
-            <p style={{ fontSize: 13, color: COLORS.muted, textAlign: "center", marginBottom: 28 }}>
-              Create your account to book faster, track your bookings, and manage your balance.
-            </p>
-
-            {memberSuccess ? (
-              <div className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24, textAlign: "center" }}>
-                <p style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx, marginBottom: 6 }}>Welcome to CourtFlow!</p>
-                <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>Your account has been created.</p>
-                <button className="cf-btn" onClick={() => goToView("booking")} style={{ height: 40, padding: "0 18px", borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, fontWeight: 500 }}>
-                  Start booking
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleMembershipSubmit} className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24 }}>
-                {memberError && (
-                  <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
-                    {memberError}
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <label className="cf-label">First name</label>
-                    <input className="cf-input" required value={memberFirstName} onChange={(e) => setMemberFirstName(e.target.value)} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label className="cf-label">Last name</label>
-                    <input className="cf-input" required value={memberLastName} onChange={(e) => setMemberLastName(e.target.value)} />
-                  </div>
+              {memberSuccess ? (
+                <div className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24, textAlign: "center" }}>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: COLORS.onyx, marginBottom: 6 }}>Welcome to CourtFlow!</p>
+                  <p style={{ fontSize: 13, color: COLORS.muted, marginBottom: 16 }}>Your account has been created.</p>
+                  <button className="cf-btn" onClick={() => scrollToSection("booking")} style={{ height: 40, padding: "0 18px", borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 13, fontWeight: 500 }}>
+                    Start booking
+                  </button>
                 </div>
-                <label className="cf-label">Preferred name</label>
-                <input className="cf-input" style={{ marginBottom: 12 }} placeholder="What should we call you?" value={memberPreferredName} onChange={(e) => setMemberPreferredName(e.target.value)} />
-                <label className="cf-label">Email address</label>
-                <input className="cf-input" style={{ marginBottom: 12 }} type="email" required placeholder="name@email.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} />
-                <label className="cf-label">Password</label>
-                <input className="cf-input" style={{ marginBottom: 12 }} type="password" required value={memberPassword} onChange={(e) => setMemberPassword(e.target.value)} />
-                <label className="cf-label">Confirm password</label>
-                <input className="cf-input" style={{ marginBottom: 20 }} type="password" required value={memberConfirmPassword} onChange={(e) => setMemberConfirmPassword(e.target.value)} />
-                <button
-                  type="submit"
-                  className="cf-btn"
-                  disabled={memberLoading}
-                  style={{ width: "100%", height: 44, borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 600, opacity: memberLoading ? 0.6 : 1 }}
-                >
-                  {memberLoading ? "Please wait..." : "Register now"}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+              ) : (
+                <form onSubmit={handleMembershipSubmit} className="cf-card" style={{ background: "#fff", border: `1px solid ${COLORS.border}`, padding: 24 }}>
+                  {memberError && (
+                    <div style={{ background: COLORS.dangerBg, color: COLORS.danger, fontSize: 12, borderRadius: 8, padding: "8px 12px", marginBottom: 14 }}>
+                      {memberError}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="cf-label">First name</label>
+                      <input className="cf-input" required value={memberFirstName} onChange={(e) => setMemberFirstName(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="cf-label">Last name</label>
+                      <input className="cf-input" required value={memberLastName} onChange={(e) => setMemberLastName(e.target.value)} />
+                    </div>
+                  </div>
+                  <label className="cf-label">Preferred name</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} placeholder="What should we call you?" value={memberPreferredName} onChange={(e) => setMemberPreferredName(e.target.value)} />
+                  <label className="cf-label">Email address</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} type="email" required placeholder="name@email.com" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} />
+                  <label className="cf-label">Password</label>
+                  <input className="cf-input" style={{ marginBottom: 12 }} type="password" required value={memberPassword} onChange={(e) => setMemberPassword(e.target.value)} />
+                  <label className="cf-label">Confirm password</label>
+                  <input className="cf-input" style={{ marginBottom: 20 }} type="password" required value={memberConfirmPassword} onChange={(e) => setMemberConfirmPassword(e.target.value)} />
+                  <button
+                    type="submit"
+                    className="cf-btn"
+                    disabled={memberLoading}
+                    style={{ width: "100%", height: 44, borderRadius: 999, background: COLORS.onyx, color: COLORS.gold, fontSize: 14, fontWeight: 600, opacity: memberLoading ? 0.6 : 1 }}
+                  >
+                    {memberLoading ? "Please wait..." : "Register now"}
+                  </button>
+                </form>
+              )}
+            </div>
+          </section>
 
-      {view === "blog" && (
-        <div className="cf-view-page" style={{ paddingLeft: 32, paddingRight: 32, paddingBottom: 56 }}>
-          <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
-            <h2 className="cf-heading" style={{ fontSize: 26, color: COLORS.onyx, marginBottom: 8 }}>Blog</h2>
-            <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
-          </div>
-        </div>
+          <section id="booking" className="cf-scroll-section">
+            <HomeView
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              isToday={isToday}
+              bySection={bySection}
+              bookedHours={bookedHours}
+              myHours={myHours}
+              selected={selected}
+              toggleSlot={toggleSlot}
+              basePrice={basePrice}
+              handleBookNow={handleBookNow}
+              dayClosure={dayClosure}
+              courtSettings={courtSettings}
+              startHour={startHour}
+              endHour={endHour}
+            />
+          </section>
+
+          <section id="blog" className="cf-scroll-section" style={{ paddingLeft: 32, paddingRight: 32, paddingTop: 56, paddingBottom: 56 }}>
+            <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+              <h2 className="cf-heading" style={{ fontSize: 26, color: COLORS.onyx, marginBottom: 8 }}>Blog</h2>
+              <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
+            </div>
+          </section>
+        </>
       )}
 
       {view === "account" && (
