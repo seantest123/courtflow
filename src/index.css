@@ -55,8 +55,8 @@ body {
 /* Hero pickleball rally animation (JS-driven, see HeroRallyScene) */
 /* ---------------------------------------------------------- */
 :root {
-  --paddle-w: 150px;
-  --paddle-h: 92px;
+  --paddle-w: 120px;
+  --paddle-h: 152px;
   --ball-size: 34px;
 }
 
@@ -100,16 +100,16 @@ body {
 
 @media (max-width: 900px) {
   :root {
-    --paddle-w: 108px;
-    --paddle-h: 66px;
+    --paddle-w: 86px;
+    --paddle-h: 110px;
     --ball-size: 26px;
   }
 }
 
 @media (max-width: 560px) {
   :root {
-    --paddle-w: 78px;
-    --paddle-h: 48px;
+    --paddle-w: 62px;
+    --paddle-h: 80px;
     --ball-size: 18px;
   }
 }

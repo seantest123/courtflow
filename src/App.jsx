@@ -188,11 +188,26 @@ function HeroRallyScene() {
     let start = null;
     let flight = null; // { fromKey, toKey, fromX, fromY, toX, toY, dur, t0, arc, jitter }
 
-    function launchFlight(fromKey, nowSec, heightPx, widthPx, paddleHeightPx) {
+    // Face-center fraction across the paddle element's own rendered width —
+    // matches the paddle SVG's viewBox (face spans x:70-210 of a 220-wide
+    // box), so the ball always targets the real paddle face, not a fixed
+    // percentage of hero width (which broke on wider desktop screens).
+    const FACE_FRAC = 140 / 220;
+
+    function paddleFaceX(key) {
+      const el = key === "left" ? leftEl : rightEl;
+      const elRect = el.getBoundingClientRect();
+      const sceneRect = scene.getBoundingClientRect();
+      const localLeft = elRect.left - sceneRect.left;
+      const frac = key === "left" ? FACE_FRAC : 1 - FACE_FRAC;
+      return localLeft + elRect.width * frac;
+    }
+
+    function launchFlight(fromKey, nowSec, heightPx, paddleHeightPx) {
       const toKey = fromKey === "left" ? "right" : "left";
       const dur = 0.75 + Math.random() * 0.5;
-      const fromX = fromKey === "left" ? widthPx * 0.14 : widthPx * 0.86;
-      const toX = toKey === "left" ? widthPx * 0.14 : widthPx * 0.86;
+      const fromX = paddleFaceX(fromKey);
+      const toX = paddleFaceX(toKey);
       const fromY = paddleY(fromKey, nowSec, heightPx, paddleHeightPx);
       // Predict where the destination paddle's own rhythm will place it
       // once this flight's duration has elapsed — this is what lets the
@@ -223,12 +238,11 @@ function HeroRallyScene() {
       const nowSec = (ts - start) / 1000;
       const rect = scene.getBoundingClientRect();
       const heightPx = rect.height;
-      const widthPx = rect.width;
       const paddleHeightPx = leftEl.offsetHeight || heightPx * 0.25;
       const centerY = heightPx / 2;
 
       if (!flight) {
-        launchFlight("left", nowSec, heightPx, widthPx, paddleHeightPx);
+        launchFlight("left", nowSec, heightPx, paddleHeightPx);
       }
 
       const leftY = paddleY("left", nowSec, heightPx, paddleHeightPx);
@@ -251,7 +265,7 @@ function HeroRallyScene() {
       if (t >= 1) {
         const arrivedKey = flight.toKey;
         paddles[arrivedKey].lungeUntil = nowSec + 0.18;
-        launchFlight(arrivedKey, nowSec, heightPx, widthPx, paddleHeightPx);
+        launchFlight(arrivedKey, nowSec, heightPx, paddleHeightPx);
       }
 
       raf = requestAnimationFrame(tick);
@@ -263,38 +277,40 @@ function HeroRallyScene() {
 
   return (
     <div className="cf-hero-scene" ref={sceneRef} aria-hidden="true">
-      <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClip">
-            <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+            <rect x="70" y="10" width="140" height="260" rx="60" ry="60" />
           </clipPath>
         </defs>
-        <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-        <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+        <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+        <line x1="6" y1="114" x2="70" y2="114" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="130" x2="70" y2="130" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="146" x2="70" y2="146" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="162" x2="70" y2="162" stroke="#C9B98E" strokeWidth="4" />
         <g clipPath="url(#paddleFaceClip)">
-          <rect x="70" y="10" width="180" height="140" fill="var(--brand-primary)" />
-          <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-secondary)" />
+          <rect x="70" y="10" width="140" height="260" fill="var(--brand-primary)" />
+          <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-secondary)" />
         </g>
-        <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+        <rect x="70" y="10" width="140" height="260" rx="60" ry="60" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
-      <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 260 160" xmlns="http://www.w3.org/2000/svg">
+      <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClipR">
-            <rect x="70" y="10" width="180" height="140" rx="42" ry="42" />
+            <rect x="70" y="10" width="140" height="260" rx="60" ry="60" />
           </clipPath>
         </defs>
-        <rect x="0" y="58" width="80" height="44" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
-        <line x1="6" y1="68" x2="70" y2="68" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="80" x2="70" y2="80" stroke="#C9B98E" strokeWidth="4" />
-        <line x1="6" y1="92" x2="70" y2="92" stroke="#C9B98E" strokeWidth="4" />
+        <rect x="0" y="100" width="80" height="80" rx="16" fill="#E8DCCB" stroke="#3A362E" strokeWidth="3" />
+        <line x1="6" y1="114" x2="70" y2="114" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="130" x2="70" y2="130" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="146" x2="70" y2="146" stroke="#C9B98E" strokeWidth="4" />
+        <line x1="6" y1="162" x2="70" y2="162" stroke="#C9B98E" strokeWidth="4" />
         <g clipPath="url(#paddleFaceClipR)">
-          <rect x="70" y="10" width="180" height="140" fill="var(--brand-secondary)" />
-          <path d="M70,95 Q130,60 190,95 T330,95 L330,150 L70,150 Z" fill="var(--brand-primary)" />
+          <rect x="70" y="10" width="140" height="260" fill="var(--brand-secondary)" />
+          <path d="M70,150 Q140,110 210,150 V270 H70 Z" fill="var(--brand-primary)" />
         </g>
-        <rect x="70" y="10" width="180" height="140" rx="42" ry="42" fill="none" stroke="#FBF8F1" strokeWidth="6" />
+        <rect x="70" y="10" width="140" height="260" rx="60" ry="60" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-ball" ref={ballRef} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
@@ -923,7 +939,7 @@ function CustomerApp() {
 
       {/* Top nav */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px", borderBottom: `1px solid ${COLORS.border}` }}>
-        <div className="cf-heading" style={{ fontSize: 20, color: COLORS.onyx, letterSpacing: 0.5, justifySelf: "start" }}>CourtFlow</div>
+        <div style={{ justifySelf: "start" }} />
         <div style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
           <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
             Home
@@ -991,11 +1007,13 @@ function CustomerApp() {
             <div className="cf-hero-court" aria-hidden="true">
               <svg viewBox="0 0 1600 600" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
                 <rect x="60" y="40" width="1480" height="520" fill="none" stroke="#FFFFFF" strokeWidth="5" />
-                <line x1="800" y1="40" x2="800" y2="560" stroke="#FFFFFF" strokeWidth="10" strokeDasharray="2 14" strokeLinecap="round" />
-                <line x1="580" y1="40" x2="580" y2="560" stroke="#FFFFFF" strokeWidth="4" />
-                <line x1="1020" y1="40" x2="1020" y2="560" stroke="#FFFFFF" strokeWidth="4" />
-                <line x1="60" y1="300" x2="580" y2="300" stroke="#FFFFFF" strokeWidth="3" />
-                <line x1="1020" y1="300" x2="1540" y2="300" stroke="#FFFFFF" strokeWidth="3" />
+                <rect x="565" y="40" width="235" height="520" fill="#FFFFFF" fillOpacity="0.12" />
+                <rect x="800" y="40" width="235" height="520" fill="#FFFFFF" fillOpacity="0.12" />
+                <line x1="565" y1="40" x2="565" y2="560" stroke="#FFFFFF" strokeWidth="4" />
+                <line x1="1035" y1="40" x2="1035" y2="560" stroke="#FFFFFF" strokeWidth="4" />
+                <line x1="800" y1="40" x2="800" y2="560" stroke="var(--brand-secondary)" strokeWidth="12" />
+                <line x1="60" y1="300" x2="565" y2="300" stroke="#FFFFFF" strokeWidth="3" strokeOpacity="0.7" />
+                <line x1="1035" y1="300" x2="1540" y2="300" stroke="#FFFFFF" strokeWidth="3" strokeOpacity="0.7" />
               </svg>
             </div>
 
@@ -1004,8 +1022,6 @@ function CustomerApp() {
             <div className="cf-hero-fade" aria-hidden="true" />
 
             <div className="cf-hero-inner">
-              <div className="cf-hero-logo">CourtFlow</div>
-              <p className="cf-hero-tag">Book your court in seconds — pick a date, choose your slot, and you're on.</p>
               <button className="cf-btn cf-cta-pill" onClick={() => scrollToSection("membership")}>
                 Join CourtFlow Community
               </button>
