@@ -55,8 +55,8 @@ body {
 /* Hero pickleball rally animation (JS-driven, see HeroRallyScene) */
 /* ---------------------------------------------------------- */
 :root {
-  --paddle-w: 120px;
-  --paddle-h: 152px;
+  --paddle-w: 100px;
+  --paddle-h: 170px;
   --ball-size: 34px;
 }
 
@@ -73,7 +73,13 @@ body {
   top: 50%;
   width: var(--paddle-w);
   height: var(--paddle-h);
-  margin-top: calc(var(--paddle-h) / -2);
+  /* Anchored on the FACE's center, not the whole element's center — the
+     handle hanging below the face means the face sits above the element's
+     geometric midpoint (face center ≈ 32.4% down from the top, based on
+     the paddle's viewBox: face spans y10–210 of a 340-tall box). This is
+     what the ball-contact math (HeroRallyScene) assumes translateY(0)
+     means "face at hero's vertical center". */
+  margin-top: calc(var(--paddle-h) * -0.324);
   filter: drop-shadow(0 6px 10px rgba(0,0,0,0.25));
   will-change: transform;
 }
@@ -100,16 +106,16 @@ body {
 
 @media (max-width: 900px) {
   :root {
-    --paddle-w: 86px;
-    --paddle-h: 110px;
+    --paddle-w: 72px;
+    --paddle-h: 122px;
     --ball-size: 26px;
   }
 }
 
 @media (max-width: 560px) {
   :root {
-    --paddle-w: 62px;
-    --paddle-h: 80px;
+    --paddle-w: 52px;
+    --paddle-h: 88px;
     --ball-size: 18px;
   }
 }

@@ -202,15 +202,14 @@ function HeroRallyScene() {
     // matches the paddle SVG's viewBox (face spans x:70-210 of a 220-wide
     // box), so the ball always targets the real paddle face, not a fixed
     // percentage of hero width (which broke on wider desktop screens).
-    const FACE_FRAC = 136 / 220;
-
+    // Face now sits centered above the handle (not offset to one side),
+    // so the target x is simply the paddle element's own horizontal center.
     function paddleFaceX(key) {
       const el = key === "left" ? leftEl : rightEl;
       const elRect = el.getBoundingClientRect();
       const sceneRect = scene.getBoundingClientRect();
       const localLeft = elRect.left - sceneRect.left;
-      const frac = key === "left" ? FACE_FRAC : 1 - FACE_FRAC;
-      return localLeft + elRect.width * frac;
+      return localLeft + elRect.width / 2;
     }
 
     function launchFlight(fromKey, nowSec, heightPx, paddleHeightPx) {
@@ -287,50 +286,48 @@ function HeroRallyScene() {
 
   return (
     <div className="cf-hero-scene" ref={sceneRef} aria-hidden="true">
-      <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
+      <svg className="cf-paddle cf-paddle-left" ref={leftPaddleRef} viewBox="0 0 200 340" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClip">
-            <rect x="76" y="20" width="120" height="192" rx="30" ry="30" />
+            <rect x="25" y="10" width="150" height="200" rx="40" ry="40" />
           </clipPath>
         </defs>
-        {/* Continuous cream body: handle + throat + bezel frame, all one piece so there's no seam */}
-        <rect x="0" y="98" width="46" height="84" rx="16" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
-        <rect x="20" y="104" width="52" height="72" fill="#F3ECD8" />
-        <rect x="58" y="4" width="156" height="224" rx="46" ry="46" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
-        {/* accent collar at the throat */}
-        <rect x="40" y="96" width="14" height="88" fill="var(--brand-secondary)" />
-        {/* grip wrap lines on the handle */}
-        <line x1="6" y1="112" x2="40" y2="112" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="128" x2="40" y2="128" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="144" x2="40" y2="144" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="160" x2="40" y2="160" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="176" x2="40" y2="176" stroke="#C9B98E" strokeWidth="3" />
-        {/* colored face, wave split, inset within the cream bezel */}
+        {/* handle + short taper, one continuous shape extending straight down from face bottom-center */}
+        <path d="M25,208 L175,208 L125,232 L125,318 Q125,330 113,330 L87,330 Q75,330 75,318 L75,232 Z" fill="#B8814A" stroke="#8B5E34" strokeWidth="2" />
+        {/* collar cap where handle meets throat */}
+        <rect x="70" y="225" width="60" height="14" rx="4" fill="#FBF8F1" />
+        {/* grip wrap lines */}
+        <line x1="82" y1="248" x2="118" y2="248" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="262" x2="118" y2="262" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="276" x2="118" y2="276" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="290" x2="118" y2="290" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="304" x2="118" y2="304" stroke="#8B5E34" strokeWidth="3" />
+        {/* face: two-tone diagonal S-wave split */}
         <g clipPath="url(#paddleFaceClip)">
-          <rect x="76" y="20" width="120" height="192" fill="var(--brand-primary)" />
-          <path d="M76,130 Q136,95 196,130 V212 H76 Z" fill="var(--brand-secondary)" />
+          <rect x="25" y="10" width="150" height="200" fill="var(--brand-primary)" />
+          <path d="M25,155 C55,125 90,185 120,150 C145,120 165,165 175,140 L175,210 L25,210 Z" fill="var(--brand-secondary)" />
         </g>
+        <rect x="25" y="10" width="150" height="200" rx="40" ry="40" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
-      <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 220 280" xmlns="http://www.w3.org/2000/svg">
+      <svg className="cf-paddle cf-paddle-right" ref={rightPaddleRef} viewBox="0 0 200 340" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <clipPath id="paddleFaceClipR">
-            <rect x="76" y="20" width="120" height="192" rx="30" ry="30" />
+            <rect x="25" y="10" width="150" height="200" rx="40" ry="40" />
           </clipPath>
         </defs>
-        <rect x="0" y="98" width="46" height="84" rx="16" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
-        <rect x="20" y="104" width="52" height="72" fill="#F3ECD8" />
-        <rect x="58" y="4" width="156" height="224" rx="46" ry="46" fill="#F3ECD8" stroke="#B8A374" strokeWidth="2" />
-        <rect x="40" y="96" width="14" height="88" fill="var(--brand-primary)" />
-        <line x1="6" y1="112" x2="40" y2="112" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="128" x2="40" y2="128" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="144" x2="40" y2="144" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="160" x2="40" y2="160" stroke="#C9B98E" strokeWidth="3" />
-        <line x1="6" y1="176" x2="40" y2="176" stroke="#C9B98E" strokeWidth="3" />
+        <path d="M25,208 L175,208 L125,232 L125,318 Q125,330 113,330 L87,330 Q75,330 75,318 L75,232 Z" fill="#B8814A" stroke="#8B5E34" strokeWidth="2" />
+        <rect x="70" y="225" width="60" height="14" rx="4" fill="#FBF8F1" />
+        <line x1="82" y1="248" x2="118" y2="248" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="262" x2="118" y2="262" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="276" x2="118" y2="276" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="290" x2="118" y2="290" stroke="#8B5E34" strokeWidth="3" />
+        <line x1="82" y1="304" x2="118" y2="304" stroke="#8B5E34" strokeWidth="3" />
         <g clipPath="url(#paddleFaceClipR)">
-          <rect x="76" y="20" width="120" height="192" fill="var(--brand-secondary)" />
-          <path d="M76,130 Q136,95 196,130 V212 H76 Z" fill="var(--brand-primary)" />
+          <rect x="25" y="10" width="150" height="200" fill="var(--brand-secondary)" />
+          <path d="M25,155 C55,125 90,185 120,150 C145,120 165,165 175,140 L175,210 L25,210 Z" fill="var(--brand-primary)" />
         </g>
+        <rect x="25" y="10" width="150" height="200" rx="40" ry="40" fill="none" stroke="#FBF8F1" strokeWidth="6" />
       </svg>
 
       <svg className="cf-ball" ref={ballRef} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
