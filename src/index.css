@@ -39,6 +39,9 @@
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
+
+  /* Fixed nav height, used by view pages to clear the translucent navbar */
+  --nav-h: 76px;
 }
 
 * {
