@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
-  LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users,
+  LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users, Camera,
 } from "lucide-react";
 import { supabase, supabaseAdmin } from "./supabaseClient";
 
@@ -108,6 +108,13 @@ function todayStr() {
 function formatDateLabel(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`);
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatJoinDate(isoString) {
+  if (!isoString) return "—";
+  const d = new Date(isoString);
+  if (isNaN(d)) return "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function addDays(dateStr, delta) {
@@ -344,6 +351,109 @@ function HeroRallyScene() {
   );
 }
 
+function getInitials(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] || "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (first + last).toUpperCase() || "?";
+}
+
+function avatarColor(seed) {
+  const palette = ["#4FA8D8", "#FF6B4A", "#1C8FB0", "#B8814A", "#3F5643", "#93551C"];
+  const s = seed || "?";
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
+}
+
+// Shared avatar display — used on the account page header and admin customer
+// cards, so a photo (or its placeholder) looks identical everywhere.
+function Avatar({ name, avatarUrl, size = 44 }) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name || "Profile picture"}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", border: `1px solid ${COLORS.border}`, flexShrink: 0 }}
+      />
+    );
+  }
+  return (
+    <div
+      aria-label={name ? `${name} (no profile picture)` : "No profile picture"}
+      style={{ width: size, height: size, borderRadius: "50%", background: avatarColor(name), color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: Math.round(size * 0.38), flexShrink: 0 }}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
+
+// Avatar + upload control for the user-facing account page. Uploads to the
+// "avatars" Supabase Storage bucket, then writes the public URL onto the
+// user's own row so it's picked up everywhere profile.avatar_url is read
+// (account page, admin customer cards).
+function AvatarUploader({ name, avatarUrl, userId, onUploaded }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
+  const size = 84;
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !userId) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please choose an image file (JPG, PNG, or WEBP).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be smaller than 5MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      // Fixed key per user (not timestamped) — combined with upsert:true this
+      // makes every re-upload replace the same storage object rather than
+      // creating a new file, and it's what the RLS policy path-check expects.
+      const path = `${userId}`;
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true, cacheControl: "3600", contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: publicUrlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      // Cache-bust so the browser doesn't keep showing the old cached image
+      // at the same URL after an overwrite.
+      const freshUrl = `${publicUrlData.publicUrl}?v=${Date.now()}`;
+      const { error: updateError } = await supabase.from("users").update({ avatar_url: freshUrl }).eq("id", userId);
+      if (updateError) throw updateError;
+      await onUploaded();
+    } catch (err) {
+      alert(err.message || "Could not upload photo. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <Avatar name={name} avatarUrl={avatarUrl} size={size} />
+      <button
+        type="button"
+        className="cf-btn"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        aria-label="Change profile picture"
+        style={{
+          position: "absolute", bottom: -2, right: -2, width: 30, height: 30, borderRadius: "50%",
+          background: COLORS.onyx, color: COLORS.gold, display: "flex", alignItems: "center", justifyContent: "center",
+          border: "2px solid #fff", opacity: uploading ? 0.6 : 1,
+        }}
+      >
+        {uploading ? <span style={{ fontSize: 9 }}>...</span> : <Camera size={14} />}
+      </button>
+      <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} style={{ display: "none" }} />
+    </div>
+  );
+}
+
 function CustomerApp() {
   const [view, setView] = useState("home");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -428,7 +538,7 @@ function CustomerApp() {
     if (!currentUserId) return;
     const { data, error } = await supabase
       .from("users")
-      .select("name, email, phone, balance")
+      .select("name, email, phone, balance, avatar_url")
       .eq("id", currentUserId)
       .single();
     if (data) setProfile(data);
@@ -437,7 +547,7 @@ function CustomerApp() {
 
   useEffect(() => {
     if (!currentUserId) {
-      setProfile({ name: "", email: "", phone: "", balance: 0 });
+      setProfile({ name: "", email: "", phone: "", balance: 0, avatar_url: null });
       return;
     }
     reloadProfile();
@@ -731,7 +841,7 @@ function CustomerApp() {
 
     setLoggedIn(true);
     setCurrentUserId(data.user.id);
-    setProfile({ name: memberPreferredName || fullName, email: memberEmail, phone: "" });
+    setProfile({ name: memberPreferredName || fullName, email: memberEmail, phone: "", avatar_url: null });
     setName(fullName);
     setEmail(memberEmail);
     setPhone("");
@@ -1223,6 +1333,7 @@ function CustomerApp() {
           daySlots={daySlots}
           profile={profile}
           reloadProfile={reloadProfile}
+          userId={currentUserId}
           onLoginClick={() => setShowLogin(true)}
         />
         </div>
@@ -1824,7 +1935,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, onLoginClick }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, userId, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
@@ -1946,7 +2057,10 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
 
   return (
     <div style={{ padding: "40px 32px", maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, color: COLORS.onyx, marginBottom: 20 }}>My account</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+        <AvatarUploader name={profile.name} avatarUrl={profile.avatar_url} userId={userId} onUploaded={reloadProfile} />
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, color: COLORS.onyx }}>My account</h1>
+      </div>
 
       <h3 style={{ fontSize: 18, color: COLORS.onyx, marginBottom: 16 }}>My bookings</h3>
       <div style={{ display: "flex", gap: 20, borderBottom: `1px solid ${COLORS.border}`, marginBottom: 16 }}>
@@ -2242,7 +2356,7 @@ function AdminView({ courtId }) {
   async function loadCustomers() {
     const { data: usersData, error: usersErr } = await supabaseAdmin
       .from("users")
-      .select("id, name, email, phone, notes, created_at")
+      .select("id, name, email, phone, notes, created_at, avatar_url, balance")
       .eq("is_admin", false)
       .order("created_at", { ascending: false });
 
@@ -2489,33 +2603,46 @@ function AdminView({ courtId }) {
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
             />
-            {customers
-              .filter((c) => {
-                if (!customerSearch) return true;
-                const q = customerSearch.toLowerCase();
-                return (c.name || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q);
-              })
-              .map((c) => (
-                <div key={c.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, background: "#fff" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{c.name || "—"}</p>
-                      <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{c.email} {c.phone ? `· ${c.phone}` : ""}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+              {customers
+                .filter((c) => {
+                  if (!customerSearch) return true;
+                  const q = customerSearch.toLowerCase();
+                  return (c.name || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q);
+                })
+                .map((c) => (
+                  <div key={c.id} className="cf-card" style={{ border: `1px solid ${COLORS.border}`, padding: 16, background: "#fff", display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                      <Avatar name={c.name} avatarUrl={c.avatar_url} size={48} />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "—"}</p>
+                        <p style={{ fontSize: 12, color: COLORS.muted, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.email}</p>
+                      </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <p style={{ fontSize: 12, color: COLORS.muted, margin: "0 0 2px" }}>{c.orderCount} booking{c.orderCount !== 1 ? "s" : ""}</p>
-                      <p style={{ fontSize: 14, fontWeight: 500, color: COLORS.goldDark, margin: 0 }}>₱{c.totalSpent}</p>
+
+                    <p style={{ fontSize: 11, color: COLORS.muted, margin: "0 0 10px" }}>Joined {formatJoinDate(c.created_at)}</p>
+
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                      <div style={{ flex: 1, background: COLORS.ivory, borderRadius: 8, padding: "8px 10px" }}>
+                        <p style={{ fontSize: 10, color: COLORS.muted, margin: "0 0 2px" }}>Bookings</p>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: COLORS.onyx, margin: 0 }}>{c.orderCount}</p>
+                      </div>
+                      <div style={{ flex: 1, background: COLORS.ivory, borderRadius: 8, padding: "8px 10px" }}>
+                        <p style={{ fontSize: 10, color: COLORS.muted, margin: "0 0 2px" }}>Balance</p>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: COLORS.goldDark, margin: 0 }}>₱{Number(c.balance || 0).toFixed(2)}</p>
+                      </div>
                     </div>
+
+                    <textarea
+                      defaultValue={c.notes || ""}
+                      placeholder="Add a note about this customer..."
+                      onBlur={(e) => saveCustomerNote(c.id, e.target.value)}
+                      style={{ width: "100%", minHeight: 60, borderRadius: 8, border: `1px solid ${COLORS.border}`, padding: 8, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical", marginTop: "auto" }}
+                    />
+                    {savingNoteId === c.id && <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 4 }}>Saving...</p>}
                   </div>
-                  <textarea
-                    defaultValue={c.notes || ""}
-                    placeholder="Add a note about this customer..."
-                    onBlur={(e) => saveCustomerNote(c.id, e.target.value)}
-                    style={{ width: "100%", minHeight: 50, borderRadius: 8, border: `1px solid ${COLORS.border}`, padding: 8, fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }}
-                  />
-                  {savingNoteId === c.id && <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 4 }}>Saving...</p>}
-                </div>
-              ))}
+                ))}
+            </div>
             {customers.length === 0 && <p style={{ fontSize: 13, color: COLORS.muted }}>No customers yet.</p>}
           </div>
         )}
