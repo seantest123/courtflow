@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
+  Clock, Lock, Check, X, ChevronLeft, ChevronRight, ChevronDown, CreditCard, Calendar,
   LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users, Camera,
 } from "lucide-react";
 import { supabase, supabaseAdmin } from "./supabaseClient";
@@ -452,6 +452,35 @@ function AvatarUploader({ name, avatarUrl, userId, onUploaded }) {
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} style={{ display: "none" }} />
     </div>
   );
+}
+
+function AnimatedHeadline({ text, startDelay = 0.5 }) {
+  const words = text.split(" ");
+  let charIndex = 0;
+  return (
+    <>
+      {words.map((word, wi) => (
+        <span key={wi} style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+          {word.split("").map((ch, ci) => {
+            const delay = startDelay + charIndex * 0.045;
+            charIndex++;
+            return (
+              <span key={ci} className="cf-hero-char" style={{ animationDelay: `${delay}s` }}>
+                {ch}
+              </span>
+            );
+          })}
+          {wi < words.length - 1 ? "\u00A0" : ""}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function handleCtaGlowMove(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+  e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
 }
 
 function CustomerApp() {
@@ -1102,17 +1131,74 @@ function CustomerApp() {
         .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.35); }
         .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.92); margin-top: 8px; max-width: 480px; text-shadow: 0 1px 6px rgba(0,0,0,0.35); }
         .cf-cta-pill {
+          position: relative;
+          overflow: hidden;
           display: inline-flex; align-items: center; gap: 8px;
-          margin-top: 24px; height: 46px; padding: 0 24px;
+          height: 46px; padding: 0 24px;
           border-radius: 999px; border: none;
           background: ${COLORS.gold}; color: #fff; font-size: 14px; font-weight: 600;
-          animation: cf-cta-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+          --glow-x: 50%; --glow-y: 50%;
+          transition: transform 0.35s ease, box-shadow 0.35s ease;
         }
-        @keyframes cf-cta-in {
-          0% { opacity: 0; transform: translateY(14px) scale(0.94); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
+        .cf-cta-pill::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(90px circle at var(--glow-x) var(--glow-y), rgba(255,255,255,0.4), transparent 70%);
+          opacity: 0;
+          transition: opacity 0.35s ease;
+          pointer-events: none;
         }
-        .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.05); }
+        .cf-cta-pill:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(255,107,74,0.45); }
+        .cf-cta-pill:hover::before { opacity: 1; }
+
+        /* Hero entrance sequence */
+        @keyframes cf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes cf-char-in {
+          from { opacity: 0; filter: blur(6px); transform: translateY(14px); }
+          to { opacity: 1; filter: blur(0); transform: translateY(0); }
+        }
+        @keyframes cf-fade-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cf-bounce-down {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(6px); }
+        }
+        .cf-hero-eyebrow {
+          opacity: 0;
+          animation: cf-fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s forwards;
+        }
+        .cf-hero-char {
+          display: inline-block;
+          opacity: 0;
+          animation: cf-char-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards;
+        }
+        .cf-hero-desc {
+          opacity: 0;
+          animation: cf-fade-up 0.7s cubic-bezier(0.2,0.8,0.2,1) 1.3s forwards;
+        }
+        .cf-hero-cta-group {
+          opacity: 0;
+          animation: cf-fade-up 0.7s cubic-bezier(0.2,0.8,0.2,1) 1.7s forwards;
+        }
+        .cf-hero-scroll-indicator {
+          opacity: 0;
+          animation:
+            cf-fade-in 0.8s cubic-bezier(0.2,0.8,0.2,1) 2s forwards,
+            cf-bounce-down 1.6s ease-in-out 2.8s infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cf-hero-eyebrow, .cf-hero-char, .cf-hero-desc, .cf-hero-cta-group, .cf-hero-scroll-indicator {
+            animation: none !important;
+            opacity: 1 !important;
+            filter: none !important;
+            transform: none !important;
+          }
+          .cf-cta-pill, .cf-cta-pill::before { transition: none !important; }
+        }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
         @media (max-width: 640px) {
           .cf-topnav { padding: 14px 14px !important; }
@@ -1228,9 +1314,23 @@ function CustomerApp() {
             <div className="cf-hero-fade" aria-hidden="true" />
 
             <div className="cf-hero-inner">
-              <button className="cf-btn cf-cta-pill" onClick={() => scrollToSection("membership")}>
-                Join CourtFlow Community
-              </button>
+              <p className="cf-hero-eyebrow" style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginBottom: 10, fontWeight: 600 }}>
+                Pickleball, elevated
+              </p>
+              <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
+                <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
+              </h1>
+              <p className="cf-hero-desc" style={{ fontSize: 15, color: "rgba(255,255,255,0.92)", marginTop: 12, maxWidth: 460, marginLeft: "auto", marginRight: "auto", textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
+                Real-time availability, instant confirmation, one seamless booking experience.
+              </p>
+              <div className="cf-hero-cta-group" style={{ marginTop: 20 }}>
+                <button className="cf-btn cf-cta-pill" onMouseMove={handleCtaGlowMove} onClick={() => scrollToSection("membership")}>
+                  Join CourtFlow Community
+                </button>
+              </div>
+            </div>
+            <div className="cf-hero-scroll-indicator" style={{ position: "absolute", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 4, color: "rgba(255,255,255,0.85)" }} aria-hidden="true">
+              <ChevronDown size={22} />
             </div>
           </section>
 
