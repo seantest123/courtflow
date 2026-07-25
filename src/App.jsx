@@ -1239,14 +1239,18 @@ function CustomerApp() {
         .cf-hero-eyebrow {
           opacity: 0;
           animation: cf-fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s forwards;
-          font-size: clamp(10.5px, 3vw, 12px);
-          letter-spacing: clamp(0.4px, 0.5vw, 2px);
-          max-width: 320px;
-          margin-left: auto;
-          margin-right: auto;
+          white-space: nowrap;
+          font-size: 12px;
+          letter-spacing: 2px;
         }
-        @media (min-width: 640px) {
-          .cf-hero-eyebrow { max-width: 480px; }
+        @media (max-width: 1023px) {
+          .cf-hero-eyebrow { font-size: 10.5px; letter-spacing: 1.2px; }
+        }
+        @media (max-width: 767px) {
+          .cf-hero-eyebrow { font-size: 9.5px; letter-spacing: 0.6px; }
+        }
+        @media (max-width: 479px) {
+          .cf-hero-eyebrow { font-size: 8.5px; letter-spacing: 0.2px; }
         }
         .cf-hero-char {
           display: inline-block;
@@ -1256,6 +1260,18 @@ function CustomerApp() {
         .cf-hero-desc {
           opacity: 0;
           animation: cf-fade-up 0.7s cubic-bezier(0.2,0.8,0.2,1) 1.3s forwards;
+          white-space: nowrap;
+          font-size: 15px;
+          letter-spacing: 0;
+        }
+        @media (max-width: 1023px) {
+          .cf-hero-desc { font-size: 12.5px; }
+        }
+        @media (max-width: 767px) {
+          .cf-hero-desc { font-size: 10px; letter-spacing: -0.1px; }
+        }
+        @media (max-width: 479px) {
+          .cf-hero-desc { font-size: 7.5px; letter-spacing: -0.2px; }
         }
         .cf-hero-cta-group {
           opacity: 0;
@@ -1450,7 +1466,7 @@ function CustomerApp() {
               <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
                 <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
               </h1>
-              <p className="cf-hero-desc" style={{ fontSize: 15, color: "rgba(255,255,255,0.92)", marginTop: 12, maxWidth: 460, marginLeft: "auto", marginRight: "auto", textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
+              <p className="cf-hero-desc" style={{ color: "rgba(255,255,255,0.92)", marginTop: 12, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
                 Real-time availability, instant confirmation, one seamless booking experience.
               </p>
               <div className="cf-hero-cta-group" style={{ marginTop: 20 }}>
