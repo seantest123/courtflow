@@ -488,16 +488,15 @@ function handleCtaGlowMove(e) {
 // the rain reads as one storm, not random noise; only horizontal start
 // position, fall duration, and start delay are randomized per drop so the
 // loop never looks synced.
-function RainDrops({ count = 35 }) {
+function RainDrops({ count = 80 }) {
   const drops = useMemo(() => {
     return Array.from({ length: count }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      width: 8 + Math.random() * 1,
-      height: 22 + Math.random() * 32,
+      height: 15 + Math.random() * 25,
       duration: 0.6 + Math.random() * 0.8,
       delay: Math.random() * 1.4,
-      opacity: 0.45 + Math.random() * 0.35,
+      opacity: 0.15 + Math.random() * 0.2,
     }));
   }, [count]);
 
@@ -509,7 +508,6 @@ function RainDrops({ count = 35 }) {
           className="cf-rain-drop"
           style={{
             left: `${d.left}%`,
-            width: `${d.width}px`,
             height: `${d.height}px`,
             animationDuration: `${d.duration}s`,
             animationDelay: `${d.delay}s`,
@@ -1241,6 +1239,14 @@ function CustomerApp() {
         .cf-hero-eyebrow {
           opacity: 0;
           animation: cf-fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s forwards;
+          font-size: clamp(10.5px, 3vw, 12px);
+          letter-spacing: clamp(0.4px, 0.5vw, 2px);
+          max-width: 320px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        @media (min-width: 640px) {
+          .cf-hero-eyebrow { max-width: 480px; }
         }
         .cf-hero-char {
           display: inline-block;
@@ -1288,9 +1294,8 @@ function CustomerApp() {
         .cf-rain-drop {
           position: absolute;
           top: -10%;
-          background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0.4));
-          clip-path: polygon(50% 100%, 100% 40%, 65% 0%, 35% 0%, 0% 40%);
-          box-shadow: 0 0 6px rgba(255,255,255,0.6);
+          width: 1px;
+          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.9), rgba(255,255,255,0));
           animation-name: cf-rain-fall;
           animation-timing-function: linear;
           animation-iteration-count: infinite;
@@ -1431,7 +1436,7 @@ function CustomerApp() {
 
             <HeroRallyScene />
 
-            <RainDrops count={35} />
+            <RainDrops count={80} />
 
             <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
@@ -1439,8 +1444,8 @@ function CustomerApp() {
             <LightningFlash />
 
             <div className="cf-hero-inner">
-              <p className="cf-hero-eyebrow" style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginBottom: 10, fontWeight: 600 }}>
-                Pickleball, elevated
+              <p className="cf-hero-eyebrow" style={{ textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginBottom: 10, fontWeight: 600 }}>
+                Someone's eyeing your favorite time slot right now.
               </p>
               <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
                 <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
