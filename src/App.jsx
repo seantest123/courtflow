@@ -483,35 +483,35 @@ function handleCtaGlowMove(e) {
   e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
 }
 
-// Ambient ember particles — continuous, independent of the one-time entrance
-// sequence. Each particle gets randomized left position, size, duration,
-// delay, and horizontal drift so the loop never looks synced/mechanical.
-// Generated once per mount (useMemo) rather than on every render.
-function EmberParticles({ count = 18 }) {
-  const particles = useMemo(() => {
+// Ambient rain layer — continuous, independent of the one-time entrance
+// sequence. Streaks share one consistent drift angle (wind direction) so the
+// rain reads as a single storm, not random noise; only horizontal start
+// position, fall duration, and start delay are randomized per streak so the
+// loop never looks synced.
+function RainStreaks({ count = 80 }) {
+  const streaks = useMemo(() => {
     return Array.from({ length: count }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      size: 2 + Math.random() * 3,
-      duration: 6 + Math.random() * 8,
-      delay: Math.random() * 14,
-      drift: (Math.random() - 0.5) * 60,
+      height: 15 + Math.random() * 25,
+      duration: 0.6 + Math.random() * 0.8,
+      delay: Math.random() * 1.4,
+      opacity: 0.08 + Math.random() * 0.1,
     }));
   }, [count]);
 
   return (
-    <div className="cf-embers" aria-hidden="true">
-      {particles.map((p) => (
+    <div className="cf-rain" aria-hidden="true">
+      {streaks.map((s) => (
         <span
-          key={p.id}
-          className="cf-ember"
+          key={s.id}
+          className="cf-rain-streak"
           style={{
-            left: `${p.left}%`,
-            width: `${p.size}px`,
-            height: `${p.size}px`,
-            animationDuration: `${p.duration}s`,
-            animationDelay: `${p.delay}s`,
-            "--drift": `${p.drift}px`,
+            left: `${s.left}%`,
+            height: `${s.height}px`,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+            opacity: s.opacity,
           }}
         />
       ))}
@@ -1234,36 +1234,33 @@ function CustomerApp() {
             transform: none !important;
           }
           .cf-cta-pill, .cf-cta-pill::before { transition: none !important; }
-          .cf-embers { display: none !important; }
+          .cf-rain { display: none !important; }
         }
 
-        /* Ambient ember particles — continuous background loop, independent
-           of the one-time entrance sequence above. Only opacity + transform
-           are animated (GPU-friendly), each particle randomized via inline
-           style/CSS vars set in JS (left, size, duration, delay, drift). */
-        .cf-embers {
+        /* Ambient rain layer — continuous background loop, independent of the
+           one-time entrance sequence above. Container spans the full hero
+           section (inset: 0), not a shorter child. Only opacity + transform
+           animate (GPU-friendly); horizontal drift is a fixed angle shared
+           by every streak so the rain reads as one consistent direction. */
+        .cf-rain {
           position: absolute;
           inset: 0;
           z-index: 2;
           overflow: hidden;
           pointer-events: none;
         }
-        .cf-ember {
+        .cf-rain-streak {
           position: absolute;
-          bottom: -10px;
-          border-radius: 50%;
-          background: ${COLORS.gold};
-          box-shadow: 0 0 6px 2px rgba(255,107,74,0.7), 0 0 14px 5px rgba(255,107,74,0.35);
-          opacity: 0;
-          animation-name: cf-ember-rise;
-          animation-timing-function: cubic-bezier(0.2,0.8,0.2,1);
+          top: -10%;
+          width: 1.5px;
+          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.9), rgba(255,255,255,0));
+          animation-name: cf-rain-fall;
+          animation-timing-function: linear;
           animation-iteration-count: infinite;
         }
-        @keyframes cf-ember-rise {
-          0% { opacity: 0; transform: translate(0, 0); }
-          12% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { opacity: 0; transform: translate(var(--drift), -320px); }
+        @keyframes cf-rain-fall {
+          0% { transform: translate(0, 0); }
+          100% { transform: translate(18px, 120vh); }
         }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
         @media (max-width: 640px) {
@@ -1376,7 +1373,7 @@ function CustomerApp() {
 
             <HeroRallyScene />
 
-            <EmberParticles count={18} />
+            <RainStreaks count={80} />
 
             <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
