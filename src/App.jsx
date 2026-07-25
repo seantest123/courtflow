@@ -1990,7 +1990,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
     return "available";
   }
 
-  if (courtSettings?.status === "maintenance") {
+  if (courtSettings?.status === "maintenance_booking") {
     return (
       <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
         <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
@@ -2931,7 +2931,7 @@ function AdminView({ courtId }) {
               <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 12px" }}>Maintenance mode</p>
               {[
                 { value: "active", label: "Off", desc: "Site operates normally." },
-                { value: "maintenance", label: "Booking calendar only", desc: "Hides the booking calendar from customers." },
+                { value: "maintenance_booking", label: "Booking calendar only", desc: "Hides the booking calendar from customers." },
                 { value: "maintenance_full", label: "Full maintenance (complete lockout)", desc: "Entire site is inaccessible to customers, including login. Admin access is unaffected." },
                 { value: "maintenance_login_only", label: "Full maintenance (login accessible)", desc: "Booking is hidden site-wide, but customers can still log in to their account. Admin access is unaffected." },
               ].map((opt, i) => (
