@@ -1240,38 +1240,19 @@ function CustomerApp() {
           opacity: 0;
           animation: cf-fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s forwards;
           white-space: nowrap;
-          font-size: 12px;
-          letter-spacing: 2px;
-        }
-        @media (max-width: 1023px) {
-          .cf-hero-eyebrow { font-size: 10.5px; letter-spacing: 1.2px; }
+          font-size: 15px;
+          letter-spacing: 0;
         }
         @media (max-width: 767px) {
-          .cf-hero-eyebrow { font-size: 9.5px; letter-spacing: 0.6px; }
+          .cf-hero-eyebrow { font-size: 13px; }
         }
         @media (max-width: 479px) {
-          .cf-hero-eyebrow { font-size: 8.5px; letter-spacing: 0.2px; }
+          .cf-hero-eyebrow { font-size: 9.5px; letter-spacing: -0.1px; }
         }
         .cf-hero-char {
           display: inline-block;
           opacity: 0;
           animation: cf-char-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards;
-        }
-        .cf-hero-desc {
-          opacity: 0;
-          animation: cf-fade-up 0.7s cubic-bezier(0.2,0.8,0.2,1) 1.3s forwards;
-          white-space: nowrap;
-          font-size: 15px;
-          letter-spacing: 0;
-        }
-        @media (max-width: 1023px) {
-          .cf-hero-desc { font-size: 12.5px; }
-        }
-        @media (max-width: 767px) {
-          .cf-hero-desc { font-size: 10px; letter-spacing: -0.1px; }
-        }
-        @media (max-width: 479px) {
-          .cf-hero-desc { font-size: 7.5px; letter-spacing: -0.2px; }
         }
         .cf-hero-cta-group {
           opacity: 0;
@@ -1284,7 +1265,7 @@ function CustomerApp() {
             cf-bounce-down 1.6s ease-in-out 2.8s infinite;
         }
         @media (prefers-reduced-motion: reduce) {
-          .cf-hero-eyebrow, .cf-hero-char, .cf-hero-desc, .cf-hero-cta-group, .cf-hero-scroll-indicator {
+          .cf-hero-eyebrow, .cf-hero-char, .cf-hero-cta-group, .cf-hero-scroll-indicator {
             animation: none !important;
             opacity: 1 !important;
             filter: none !important;
@@ -1460,15 +1441,12 @@ function CustomerApp() {
             <LightningFlash />
 
             <div className="cf-hero-inner">
-              <p className="cf-hero-desc" style={{ color: "rgba(255,255,255,0.92)", marginBottom: 10, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
-                Real-time availability, instant confirmation, one seamless booking experience.
+              <p className="cf-hero-eyebrow" style={{ color: "rgba(255,255,255,0.92)", marginBottom: 10, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
+                Someone's eyeing your favorite time slot right now.
               </p>
               <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
                 <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
               </h1>
-              <p className="cf-hero-eyebrow" style={{ textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginTop: 14, fontWeight: 600 }}>
-                Someone's eyeing your favorite time slot right now.
-              </p>
               <div className="cf-hero-cta-group" style={{ marginTop: 20 }}>
                 <button className="cf-btn cf-cta-pill" onMouseMove={handleCtaGlowMove} onClick={() => scrollToSection("membership")}>
                   Join CourtFlow Community
