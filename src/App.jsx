@@ -1460,14 +1460,14 @@ function CustomerApp() {
             <LightningFlash />
 
             <div className="cf-hero-inner">
-              <p className="cf-hero-eyebrow" style={{ textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginBottom: 10, fontWeight: 600 }}>
-                Someone's eyeing your favorite time slot right now.
+              <p className="cf-hero-desc" style={{ color: "rgba(255,255,255,0.92)", marginBottom: 10, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
+                Real-time availability, instant confirmation, one seamless booking experience.
               </p>
               <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
                 <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
               </h1>
-              <p className="cf-hero-desc" style={{ color: "rgba(255,255,255,0.92)", marginTop: 12, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
-                Real-time availability, instant confirmation, one seamless booking experience.
+              <p className="cf-hero-eyebrow" style={{ textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginTop: 14, fontWeight: 600 }}>
+                Someone's eyeing your favorite time slot right now.
               </p>
               <div className="cf-hero-cta-group" style={{ marginTop: 20 }}>
                 <button className="cf-btn cf-cta-pill" onMouseMove={handleCtaGlowMove} onClick={() => scrollToSection("membership")}>
