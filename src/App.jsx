@@ -1088,15 +1088,19 @@ function CustomerApp() {
 
   const isToday = selectedDate === todayStr();
 
-  const bookingLocked = courtSettings.status === "maintenance_login_only";
-  const effectiveView = bookingLocked && loggedIn ? "account" : view;
+  useEffect(() => {
+    if (courtSettings.status === "login_only" && loggedIn && view !== "account") {
+      goToView("account");
+    }
+  }, [courtSettings.status, loggedIn, view]);
 
-  if (courtSettings.status === "maintenance_full") {
+  if (courtSettings.status === "full_lockout") {
     return (
-      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.ivory, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ maxWidth: 420, textAlign: "center" }}>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, color: COLORS.onyx, marginBottom: 12 }}>We'll be right back</h1>
-          <p style={{ fontSize: 14, color: COLORS.muted }}>CourtFlow is temporarily down for maintenance. Please check back soon.</p>
+      <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: COLORS.onyx, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", textAlign: "center", padding: 32 }}>
+        <div>
+          <Settings size={32} color={COLORS.gold} style={{ marginBottom: 16 }} />
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, marginBottom: 8 }}>CourtFlow is temporarily unavailable</h1>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.75)" }}>We're performing maintenance. Please check back shortly.</p>
         </div>
       </div>
     );
@@ -1373,23 +1377,25 @@ function CustomerApp() {
       <div className="cf-topnav" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "18px 32px" }}>
         <div style={{ justifySelf: "start" }} />
         <div className="cf-nav-links" style={{ display: "flex", gap: 28, alignItems: "center", justifySelf: "center" }}>
-          {!(bookingLocked && loggedIn) && (
-            <>
-              <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
-                Home
-              </button>
-              {!bookingLocked && (
-                <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("booking")} style={{ color: COLORS.muted }}>
-                  Court booking
-                </button>
-              )}
-              <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("blog")} style={{ color: COLORS.muted }}>
-                Blog
-              </button>
-              <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("membership")} style={{ color: COLORS.muted }}>
-                Membership
-              </button>
-            </>
+          {!(courtSettings.status === "login_only" && loggedIn) && (
+            <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("home-top")} style={{ color: COLORS.muted }}>
+              Home
+            </button>
+          )}
+          {courtSettings.status !== "login_only" && (
+            <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("booking")} style={{ color: COLORS.muted }}>
+              Court booking
+            </button>
+          )}
+          {!(courtSettings.status === "login_only" && loggedIn) && (
+            <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("blog")} style={{ color: COLORS.muted }}>
+              Blog
+            </button>
+          )}
+          {!(courtSettings.status === "login_only" && loggedIn) && (
+            <button className="cf-btn cf-nav-link" onClick={() => scrollToSection("membership")} style={{ color: COLORS.muted }}>
+              Membership
+            </button>
           )}
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
@@ -1439,7 +1445,7 @@ function CustomerApp() {
         </div>
       </div>
 
-      {effectiveView === "home" && (
+      {view === "home" && (
         <>
           <section id="home-top" className="cf-hero">
             <div className="cf-hero-court" aria-hidden="true">
@@ -1533,14 +1539,8 @@ function CustomerApp() {
             </div>
           </section>
 
-          <section id="booking" className="cf-scroll-section">
-            {bookingLocked ? (
-              <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
-                <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
-                <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, color: COLORS.onyx, marginBottom: 8 }}>Bookings temporarily unavailable</h1>
-                <p style={{ fontSize: 14, color: COLORS.muted }}>We're not accepting new bookings right now. You can still log in to manage your account.</p>
-              </div>
-            ) : (
+          {courtSettings.status !== "login_only" && (
+            <section id="booking" className="cf-scroll-section">
               <HomeView
                 selectedDate={selectedDate}
                 setSelectedDate={setSelectedDate}
@@ -1557,8 +1557,8 @@ function CustomerApp() {
                 startHour={startHour}
                 endHour={endHour}
               />
-            )}
-          </section>
+            </section>
+          )}
 
           <section id="blog" className="cf-scroll-section" style={{ paddingLeft: 32, paddingRight: 32, paddingTop: 56, paddingBottom: 56 }}>
             <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
@@ -1573,7 +1573,7 @@ function CustomerApp() {
         </>
       )}
 
-      {effectiveView === "account" && (
+      {view === "account" && (
         <div className="cf-view-page">
         <AccountView
           loggedIn={loggedIn}
@@ -1591,7 +1591,6 @@ function CustomerApp() {
           reloadProfile={reloadProfile}
           userId={currentUserId}
           onLoginClick={() => setShowLogin(true)}
-          bookingActionsDisabled={bookingLocked}
         />
         </div>
       )}
@@ -1990,7 +1989,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
     return "available";
   }
 
-  if (courtSettings?.status === "maintenance_booking") {
+  if (courtSettings?.status === "maintenance") {
     return (
       <div style={{ padding: "100px 32px", maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
         <Settings size={32} color={COLORS.muted} style={{ marginBottom: 16 }} />
@@ -2192,7 +2191,7 @@ function HomeView({ selectedDate, setSelectedDate, isToday, bySection, bookedHou
   );
 }
 
-function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, userId, onLoginClick, bookingActionsDisabled }) {
+function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRescheduleId, loadMyBookings, loadAvailability, selectedDate, courtId, daySlots, profile, reloadProfile, userId, onLoginClick }) {
   const [rescheduleDate, setRescheduleDate] = useState(selectedDate);
   const [rescheduleBookedHours, setRescheduleBookedHours] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
@@ -2342,8 +2341,6 @@ function AccountView({ loggedIn, myTab, setMyTab, bookings, rescheduleId, setRes
                     <Lock size={13} color={COLORS.warn} />
                     <span style={{ fontSize: 11, color: COLORS.warn }}>Locked — under 12h notice</span>
                   </div>
-                ) : bookingActionsDisabled ? (
-                  <span style={{ fontSize: 11, color: COLORS.muted }}>Booking actions unavailable during maintenance</span>
                 ) : (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="cf-btn" onClick={() => convertToBalance(b)} style={{ height: 32, padding: "0 14px", borderRadius: 6, border: `1px solid ${COLORS.border}`, background: "transparent", fontSize: 13, color: COLORS.onyx }}>
@@ -2511,13 +2508,13 @@ function AdminView({ courtId }) {
     setTimeout(() => setCourtSaved(false), 2000);
   }
 
-  async function setMaintenanceMode(mode) {
-    const { error } = await supabaseAdmin.from("courts").update({ status: mode }).eq("id", courtId);
+  async function setMaintenanceMode(newStatus) {
+    const { error } = await supabaseAdmin.from("courts").update({ status: newStatus }).eq("id", courtId);
     if (error) {
       alert(error.message);
       return;
     }
-    setCourtStatus(mode);
+    setCourtStatus(newStatus);
   }
 
   async function loadStats() {
@@ -2931,19 +2928,25 @@ function AdminView({ courtId }) {
               <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 12px" }}>Maintenance mode</p>
               {[
                 { value: "active", label: "Off", desc: "Site operates normally." },
-                { value: "maintenance_booking", label: "Booking calendar only", desc: "Hides the booking calendar from customers." },
-                { value: "maintenance_full", label: "Full maintenance (complete lockout)", desc: "Entire site is inaccessible to customers, including login. Admin access is unaffected." },
-                { value: "maintenance_login_only", label: "Full maintenance (login accessible)", desc: "Booking is hidden site-wide, but customers can still log in to their account. Admin access is unaffected." },
+                { value: "maintenance", label: "Maintenance mode", desc: "Hides the booking calendar from customers." },
+                { value: "login_only", label: "Full Maintenance (login accessible)", desc: "Hides all booking features site-wide. Customers can log in but only see their account." },
+                { value: "full_lockout", label: "Full Maintenance (complete lockout)", desc: "Blocks the entire public site, including login. Admin access is unaffected." },
               ].map((opt, i) => (
                 <label
                   key={opt.value}
-                  style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${COLORS.border}`, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${COLORS.border}` : "none", cursor: "pointer" }}
                 >
-                  <input type="radio" name="maintenanceMode" checked={courtStatus === opt.value} onChange={() => setMaintenanceMode(opt.value)} style={{ marginTop: 2 }} />
-                  <span>
+                  <input
+                    type="radio"
+                    name="maintenance-mode"
+                    checked={courtStatus === opt.value}
+                    onChange={() => setMaintenanceMode(opt.value)}
+                    style={{ marginTop: 3 }}
+                  />
+                  <div>
                     <p style={{ fontSize: 13, fontWeight: 500, color: COLORS.onyx, margin: "0 0 2px" }}>{opt.label}</p>
                     <p style={{ fontSize: 11, color: COLORS.muted, margin: 0 }}>{opt.desc}</p>
-                  </span>
+                  </div>
                 </label>
               ))}
             </div>
