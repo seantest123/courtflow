@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Clock, Lock, Check, X, ChevronLeft, ChevronRight, CreditCard, Calendar,
+  Clock, Lock, Check, X, ChevronLeft, ChevronRight, ChevronDown, CreditCard, Calendar,
   LayoutDashboard, ListChecks, Settings, Plus, Eye, EyeOff, Trash2, Users, Camera,
 } from "lucide-react";
 import { supabase, supabaseAdmin } from "./supabaseClient";
@@ -452,6 +452,104 @@ function AvatarUploader({ name, avatarUrl, userId, onUploaded }) {
       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} style={{ display: "none" }} />
     </div>
   );
+}
+
+function AnimatedHeadline({ text, startDelay = 0.5 }) {
+  const words = text.split(" ");
+  let charIndex = 0;
+  return (
+    <>
+      {words.map((word, wi) => (
+        <span key={wi} style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+          {word.split("").map((ch, ci) => {
+            const delay = startDelay + charIndex * 0.045;
+            charIndex++;
+            return (
+              <span key={ci} className="cf-hero-char" style={{ animationDelay: `${delay}s` }}>
+                {ch}
+              </span>
+            );
+          })}
+          {wi < words.length - 1 ? "\u00A0" : ""}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function handleCtaGlowMove(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+  e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
+}
+
+// Ambient rain layer — continuous, independent of the one-time entrance
+// sequence. Drops share one consistent tilt/drift angle (wind direction) so
+// the rain reads as one storm, not random noise; only horizontal start
+// position, fall duration, and start delay are randomized per drop so the
+// loop never looks synced.
+function RainDrops({ count = 80 }) {
+  const drops = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      height: 15 + Math.random() * 25,
+      duration: 0.6 + Math.random() * 0.8,
+      delay: Math.random() * 1.4,
+      opacity: 0.15 + Math.random() * 0.2,
+    }));
+  }, [count]);
+
+  return (
+    <div className="cf-rain" aria-hidden="true">
+      {drops.map((d) => (
+        <span
+          key={d.id}
+          className="cf-rain-drop"
+          style={{
+            left: `${d.left}%`,
+            height: `${d.height}px`,
+            animationDuration: `${d.duration}s`,
+            animationDelay: `${d.delay}s`,
+            opacity: d.opacity,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Occasional lightning flash — full-hero white overlay that pulses in and
+// out (never a flat on/off toggle), firing on a randomized 4-13s interval,
+// with a ~35% chance of a quick follow-up flash for realism. Fully disabled
+// (never scheduled) when prefers-reduced-motion is set.
+function LightningFlash() {
+  const [flashSeq, setFlashSeq] = useState(0);
+  const timeoutIdsRef = useRef([]);
+
+  useEffect(() => {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+
+    function scheduleNext() {
+      const delay = 4000 + Math.random() * 9000;
+      const id = setTimeout(() => {
+        setFlashSeq((s) => s + 1);
+        if (Math.random() < 0.35) {
+          const followUpId = setTimeout(() => setFlashSeq((s) => s + 1), 180);
+          timeoutIdsRef.current.push(followUpId);
+        }
+        scheduleNext();
+      }, delay);
+      timeoutIdsRef.current.push(id);
+    }
+
+    scheduleNext();
+    return () => timeoutIdsRef.current.forEach(clearTimeout);
+  }, []);
+
+  if (flashSeq === 0) return null;
+  return <div className="cf-lightning" key={flashSeq} aria-hidden="true" />;
 }
 
 function CustomerApp() {
@@ -1116,17 +1214,128 @@ function CustomerApp() {
         .cf-hero-logo { font-family: var(--font-display); font-size: 32px; letter-spacing: 0.5px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.35); }
         .cf-hero-tag { font-size: 14px; color: rgba(255,255,255,0.92); margin-top: 8px; max-width: 480px; text-shadow: 0 1px 6px rgba(0,0,0,0.35); }
         .cf-cta-pill {
+          position: relative;
+          overflow: hidden;
           display: inline-flex; align-items: center; gap: 8px;
-          margin-top: 24px; height: 46px; padding: 0 24px;
+          height: 46px; padding: 0 24px;
           border-radius: 999px; border: none;
           background: ${COLORS.gold}; color: #fff; font-size: 14px; font-weight: 600;
-          animation: cf-cta-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+          --glow-x: 50%; --glow-y: 50%;
+          transition: transform 0.35s ease, box-shadow 0.35s ease;
         }
-        @keyframes cf-cta-in {
-          0% { opacity: 0; transform: translateY(14px) scale(0.94); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
+        .cf-cta-pill::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: radial-gradient(90px circle at var(--glow-x) var(--glow-y), rgba(255,255,255,0.4), transparent 70%);
+          opacity: 0;
+          transition: opacity 0.35s ease;
+          pointer-events: none;
         }
-        .cf-cta-pill:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.05); }
+        .cf-cta-pill:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(255,107,74,0.45); }
+        .cf-cta-pill:hover::before { opacity: 1; }
+
+        /* Hero entrance sequence */
+        @keyframes cf-fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes cf-char-in {
+          from { opacity: 0; filter: blur(6px); transform: translateY(14px); }
+          to { opacity: 1; filter: blur(0); transform: translateY(0); }
+        }
+        @keyframes cf-fade-up {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cf-bounce-down {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(6px); }
+        }
+        .cf-hero-eyebrow {
+          opacity: 0;
+          animation: cf-fade-in 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s forwards;
+          white-space: nowrap;
+          font-size: 15px;
+          letter-spacing: 0;
+        }
+        @media (max-width: 767px) {
+          .cf-hero-eyebrow { font-size: 13px; }
+        }
+        @media (max-width: 479px) {
+          .cf-hero-eyebrow { font-size: 9.5px; letter-spacing: -0.1px; }
+        }
+        .cf-hero-char {
+          display: inline-block;
+          opacity: 0;
+          animation: cf-char-in 0.6s cubic-bezier(0.2,0.8,0.2,1) forwards;
+        }
+        .cf-hero-cta-group {
+          opacity: 0;
+          animation: cf-fade-up 0.7s cubic-bezier(0.2,0.8,0.2,1) 1.7s forwards;
+        }
+        .cf-hero-scroll-indicator {
+          opacity: 0;
+          animation:
+            cf-fade-in 0.8s cubic-bezier(0.2,0.8,0.2,1) 2s forwards,
+            cf-bounce-down 1.6s ease-in-out 2.8s infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .cf-hero-eyebrow, .cf-hero-char, .cf-hero-cta-group, .cf-hero-scroll-indicator {
+            animation: none !important;
+            opacity: 1 !important;
+            filter: none !important;
+            transform: none !important;
+          }
+          .cf-cta-pill, .cf-cta-pill::before { transition: none !important; }
+          .cf-rain, .cf-lightning { display: none !important; }
+        }
+
+        /* Ambient rain layer — continuous background loop, independent of the
+           one-time entrance sequence above. Container spans the full hero
+           section (inset: 0), not a shorter child. Only opacity + transform
+           animate (GPU-friendly); each drop keeps a constant 12deg tilt while
+           translate handles the fall + a fixed horizontal drift so every
+           drop moves in the same wind direction. */
+        .cf-rain {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .cf-rain-drop {
+          position: absolute;
+          top: -10%;
+          width: 1px;
+          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.9), rgba(255,255,255,0));
+          animation-name: cf-rain-fall;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+        }
+        @keyframes cf-rain-fall {
+          0% { transform: translate(0, 0) rotate(12deg); }
+          100% { transform: translate(24px, 120vh) rotate(12deg); }
+        }
+
+        /* Lightning flash — full-hero white overlay, remounted (via React
+           key) each time it fires so the pulse keyframe always restarts
+           cleanly. Uneven multi-step opacity pulse rather than a flat
+           on/off toggle. */
+        .cf-lightning {
+          position: absolute;
+          inset: 0;
+          z-index: 3;
+          background: #fff;
+          pointer-events: none;
+          animation: cf-lightning-pulse 0.55s cubic-bezier(0.2,0.8,0.2,1) forwards;
+        }
+        @keyframes cf-lightning-pulse {
+          0% { opacity: 0; }
+          8% { opacity: 0.85; }
+          18% { opacity: 0.15; }
+          32% { opacity: 0.65; }
+          48% { opacity: 0.05; }
+          100% { opacity: 0; }
+        }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
         @media (max-width: 640px) {
           .cf-topnav { padding: 14px 14px !important; }
@@ -1244,13 +1453,28 @@ function CustomerApp() {
 
             <HeroRallyScene />
 
+            <RainDrops count={80} />
+
             <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
 
+            <LightningFlash />
+
             <div className="cf-hero-inner">
-              <button className="cf-btn cf-cta-pill" onClick={() => scrollToSection("membership")}>
-                Join CourtFlow Community
-              </button>
+              <p className="cf-hero-eyebrow" style={{ color: "rgba(255,255,255,0.92)", marginBottom: 10, textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}>
+                Someone's eyeing your favorite time slot right now.
+              </p>
+              <h1 className="cf-heading" style={{ fontSize: "clamp(32px, 5vw, 52px)", color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,0.35)", lineHeight: 1.1, marginBottom: 4 }}>
+                <AnimatedHeadline text="Book Your Court in Seconds" startDelay={0.5} />
+              </h1>
+              <div className="cf-hero-cta-group" style={{ marginTop: 20 }}>
+                <button className="cf-btn cf-cta-pill" onMouseMove={handleCtaGlowMove} onClick={() => scrollToSection("membership")}>
+                  Join CourtFlow Community
+                </button>
+              </div>
+            </div>
+            <div className="cf-hero-scroll-indicator" style={{ position: "absolute", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 4, color: "rgba(255,255,255,0.85)" }} aria-hidden="true">
+              <ChevronDown size={22} />
             </div>
           </section>
 
@@ -1342,6 +1566,10 @@ function CustomerApp() {
               <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
             </div>
           </section>
+
+          <footer style={{ textAlign: "center", padding: "20px 32px", fontSize: 12.5, color: COLORS.muted }}>
+            © 2026 CourtFlow • All rights reserved.
+          </footer>
         </>
       )}
 
