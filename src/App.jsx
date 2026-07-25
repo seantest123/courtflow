@@ -483,6 +483,42 @@ function handleCtaGlowMove(e) {
   e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
 }
 
+// Ambient ember particles — continuous, independent of the one-time entrance
+// sequence. Each particle gets randomized left position, size, duration,
+// delay, and horizontal drift so the loop never looks synced/mechanical.
+// Generated once per mount (useMemo) rather than on every render.
+function EmberParticles({ count = 18 }) {
+  const particles = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      size: 2 + Math.random() * 3,
+      duration: 6 + Math.random() * 8,
+      delay: Math.random() * 14,
+      drift: (Math.random() - 0.5) * 60,
+    }));
+  }, [count]);
+
+  return (
+    <div className="cf-embers" aria-hidden="true">
+      {particles.map((p) => (
+        <span
+          key={p.id}
+          className="cf-ember"
+          style={{
+            left: `${p.left}%`,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+            "--drift": `${p.drift}px`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function CustomerApp() {
   const [view, setView] = useState("home");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -1198,6 +1234,36 @@ function CustomerApp() {
             transform: none !important;
           }
           .cf-cta-pill, .cf-cta-pill::before { transition: none !important; }
+          .cf-embers { display: none !important; }
+        }
+
+        /* Ambient ember particles — continuous background loop, independent
+           of the one-time entrance sequence above. Only opacity + transform
+           are animated (GPU-friendly), each particle randomized via inline
+           style/CSS vars set in JS (left, size, duration, delay, drift). */
+        .cf-embers {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .cf-ember {
+          position: absolute;
+          bottom: -10px;
+          border-radius: 50%;
+          background: ${COLORS.gold};
+          box-shadow: 0 0 6px 2px rgba(255,107,74,0.7), 0 0 14px 5px rgba(255,107,74,0.35);
+          opacity: 0;
+          animation-name: cf-ember-rise;
+          animation-timing-function: cubic-bezier(0.2,0.8,0.2,1);
+          animation-iteration-count: infinite;
+        }
+        @keyframes cf-ember-rise {
+          0% { opacity: 0; transform: translate(0, 0); }
+          12% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { opacity: 0; transform: translate(var(--drift), -320px); }
         }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
         @media (max-width: 640px) {
@@ -1309,6 +1375,8 @@ function CustomerApp() {
             </div>
 
             <HeroRallyScene />
+
+            <EmberParticles count={18} />
 
             <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
