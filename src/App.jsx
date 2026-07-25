@@ -484,39 +484,74 @@ function handleCtaGlowMove(e) {
 }
 
 // Ambient rain layer — continuous, independent of the one-time entrance
-// sequence. Streaks share one consistent drift angle (wind direction) so the
-// rain reads as a single storm, not random noise; only horizontal start
-// position, fall duration, and start delay are randomized per streak so the
+// sequence. Drops share one consistent tilt/drift angle (wind direction) so
+// the rain reads as one storm, not random noise; only horizontal start
+// position, fall duration, and start delay are randomized per drop so the
 // loop never looks synced.
-function RainStreaks({ count = 80 }) {
-  const streaks = useMemo(() => {
+function RainDrops({ count = 35 }) {
+  const drops = useMemo(() => {
     return Array.from({ length: count }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      height: 15 + Math.random() * 25,
+      width: 8 + Math.random() * 1,
+      height: 22 + Math.random() * 32,
       duration: 0.6 + Math.random() * 0.8,
       delay: Math.random() * 1.4,
-      opacity: 0.08 + Math.random() * 0.1,
+      opacity: 0.45 + Math.random() * 0.35,
     }));
   }, [count]);
 
   return (
     <div className="cf-rain" aria-hidden="true">
-      {streaks.map((s) => (
+      {drops.map((d) => (
         <span
-          key={s.id}
-          className="cf-rain-streak"
+          key={d.id}
+          className="cf-rain-drop"
           style={{
-            left: `${s.left}%`,
-            height: `${s.height}px`,
-            animationDuration: `${s.duration}s`,
-            animationDelay: `${s.delay}s`,
-            opacity: s.opacity,
+            left: `${d.left}%`,
+            width: `${d.width}px`,
+            height: `${d.height}px`,
+            animationDuration: `${d.duration}s`,
+            animationDelay: `${d.delay}s`,
+            opacity: d.opacity,
           }}
         />
       ))}
     </div>
   );
+}
+
+// Occasional lightning flash — full-hero white overlay that pulses in and
+// out (never a flat on/off toggle), firing on a randomized 4-13s interval,
+// with a ~35% chance of a quick follow-up flash for realism. Fully disabled
+// (never scheduled) when prefers-reduced-motion is set.
+function LightningFlash() {
+  const [flashSeq, setFlashSeq] = useState(0);
+  const timeoutIdsRef = useRef([]);
+
+  useEffect(() => {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+
+    function scheduleNext() {
+      const delay = 4000 + Math.random() * 9000;
+      const id = setTimeout(() => {
+        setFlashSeq((s) => s + 1);
+        if (Math.random() < 0.35) {
+          const followUpId = setTimeout(() => setFlashSeq((s) => s + 1), 180);
+          timeoutIdsRef.current.push(followUpId);
+        }
+        scheduleNext();
+      }, delay);
+      timeoutIdsRef.current.push(id);
+    }
+
+    scheduleNext();
+    return () => timeoutIdsRef.current.forEach(clearTimeout);
+  }, []);
+
+  if (flashSeq === 0) return null;
+  return <div className="cf-lightning" key={flashSeq} aria-hidden="true" />;
 }
 
 function CustomerApp() {
@@ -1234,14 +1269,15 @@ function CustomerApp() {
             transform: none !important;
           }
           .cf-cta-pill, .cf-cta-pill::before { transition: none !important; }
-          .cf-rain { display: none !important; }
+          .cf-rain, .cf-lightning { display: none !important; }
         }
 
         /* Ambient rain layer — continuous background loop, independent of the
            one-time entrance sequence above. Container spans the full hero
            section (inset: 0), not a shorter child. Only opacity + transform
-           animate (GPU-friendly); horizontal drift is a fixed angle shared
-           by every streak so the rain reads as one consistent direction. */
+           animate (GPU-friendly); each drop keeps a constant 12deg tilt while
+           translate handles the fall + a fixed horizontal drift so every
+           drop moves in the same wind direction. */
         .cf-rain {
           position: absolute;
           inset: 0;
@@ -1249,18 +1285,40 @@ function CustomerApp() {
           overflow: hidden;
           pointer-events: none;
         }
-        .cf-rain-streak {
+        .cf-rain-drop {
           position: absolute;
           top: -10%;
-          width: 1.5px;
-          background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.9), rgba(255,255,255,0));
+          background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0.4));
+          clip-path: polygon(50% 100%, 100% 40%, 65% 0%, 35% 0%, 0% 40%);
+          box-shadow: 0 0 6px rgba(255,255,255,0.6);
           animation-name: cf-rain-fall;
           animation-timing-function: linear;
           animation-iteration-count: infinite;
         }
         @keyframes cf-rain-fall {
-          0% { transform: translate(0, 0); }
-          100% { transform: translate(18px, 120vh); }
+          0% { transform: translate(0, 0) rotate(12deg); }
+          100% { transform: translate(24px, 120vh) rotate(12deg); }
+        }
+
+        /* Lightning flash — full-hero white overlay, remounted (via React
+           key) each time it fires so the pulse keyframe always restarts
+           cleanly. Uneven multi-step opacity pulse rather than a flat
+           on/off toggle. */
+        .cf-lightning {
+          position: absolute;
+          inset: 0;
+          z-index: 3;
+          background: #fff;
+          pointer-events: none;
+          animation: cf-lightning-pulse 0.55s cubic-bezier(0.2,0.8,0.2,1) forwards;
+        }
+        @keyframes cf-lightning-pulse {
+          0% { opacity: 0; }
+          8% { opacity: 0.85; }
+          18% { opacity: 0.15; }
+          32% { opacity: 0.65; }
+          48% { opacity: 0.05; }
+          100% { opacity: 0; }
         }
         .cf-nav-link { background: none; font-size: 13px; padding: 6px 2px; white-space: nowrap; }
         @media (max-width: 640px) {
@@ -1373,10 +1431,12 @@ function CustomerApp() {
 
             <HeroRallyScene />
 
-            <RainStreaks count={80} />
+            <RainDrops count={35} />
 
             <div className="cf-hero-fade-top" aria-hidden="true" />
             <div className="cf-hero-fade" aria-hidden="true" />
+
+            <LightningFlash />
 
             <div className="cf-hero-inner">
               <p className="cf-hero-eyebrow" style={{ fontSize: 12, letterSpacing: 2, textTransform: "uppercase", color: "rgba(255,255,255,0.85)", marginBottom: 10, fontWeight: 600 }}>
@@ -1479,6 +1539,10 @@ function CustomerApp() {
               <p style={{ fontSize: 13, color: COLORS.muted }}>Court tips, community stories, and updates — coming soon.</p>
             </div>
           </section>
+
+          <footer style={{ textAlign: "center", padding: "20px 32px", fontSize: 12.5, color: COLORS.muted }}>
+            © 2026 CourtFlow • All rights reserved.
+          </footer>
         </>
       )}
 
